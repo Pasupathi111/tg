@@ -59,6 +59,33 @@
 
 	let runs: Run[] = [];
 	let audit: AuditEntry[] = [];
+	let allRuns: Run[] = [];
+	let onlyValid = true;
+
+	const periodBounds = (p: string) => {
+		const [y, m] = p.split('-').map(Number);
+		const last = new Date(y, m, 0).getDate();
+		return [`${p}-01`, `${p}-${String(last).padStart(2, '0')}`];
+	};
+	// null = valid for the period, otherwise the reason it is not
+	const validityIssue = (d: TgDocument, p: string): string | null => {
+		const [start, end] = periodBounds(p);
+		const vf = d.instructions?.valid_from;
+		const vt = d.instructions?.valid_to;
+		if (vt && vt < start) return `Expired ${vt}`;
+		if (vf && vf > end) return `Starts ${vf}`;
+		return null;
+	};
+	$: periodDocs = docs.map((d) => ({
+		d,
+		issue: validityIssue(d, period),
+		run: allRuns.find((r) => r.document_id === d.id && r.period === period) ?? null
+	}));
+	$: visibleDocs = onlyValid ? periodDocs.filter((x) => !x.issue) : periodDocs;
+	// keep the selection on a document that applies to the chosen period
+	$: if (!loading && visibleDocs.length && !visibleDocs.some((x) => x.d.id === selectedDocId)) {
+		selectedDocId = (visibleDocs.find((x) => x.d.status === 'Ready') ?? visibleDocs[0]).d.id;
+	}
 
 	$: selectedDoc = docs.find((d) => d.id === selectedDocId) ?? null;
 	$: ins = selectedDoc?.instructions ?? {};
@@ -79,9 +106,10 @@
 		loading = true;
 		error = '';
 		try {
-			[docs, employees] = await Promise.all([
+			[docs, employees, allRuns] = await Promise.all([
 				getDocuments(localStorage.token),
-				getEmployees(localStorage.token)
+				getEmployees(localStorage.token),
+				getRuns(localStorage.token)
 			]);
 			if (!selectedDocId) selectedDocId = docs.find((d) => d.status === 'Ready')?.id ?? docs[0]?.id ?? null;
 		} catch (e) {
@@ -111,6 +139,7 @@
 				docs = await getDocuments(localStorage.token);
 			}
 			run = await calculateRun(localStorage.token, { document_id: selectedDoc.id, period });
+			allRuns = await getRuns(localStorage.token);
 			activeLine = 0;
 			goStep(2);
 		} catch (e) {
@@ -163,6 +192,7 @@
 	const loadStep4 = async () => {
 		try {
 			const [r, a] = await Promise.all([getRuns(localStorage.token), getAudit(localStorage.token)]);
+			allRuns = r ?? [];
 			runs = (r ?? []).filter((x) => !run || x.document_id === run.document_id);
 			audit = a ?? [];
 		} catch (e) {
@@ -262,9 +292,16 @@
 						<input
 							type="month"
 							bind:value={period}
-							on:change={loadTimesheets}
+							on:change={() => {
+								run = null;
+								loadTimesheets();
+							}}
 							class="ml-2 rounded-lg border border-[#E3E7EC] bg-white px-2 py-1.5 text-sm text-[#33414F]"
 						/>
+					</label>
+					<label class="flex items-center gap-1.5 text-xs text-[#6B7785]">
+						<input type="checkbox" bind:checked={onlyValid} />
+						Only documents valid for {period}
 					</label>
 				</div>
 
@@ -279,8 +316,12 @@
 							<div class="rounded-xl border border-[#E3E7EC] bg-white p-5 text-sm text-[#6B7785]">
 								No documents yet. Upload one in <a class="text-[#0E7C8F] underline" href="/billing/master-data">Master Data</a>.
 							</div>
+						{:else if !visibleDocs.length}
+							<div class="rounded-xl border border-[#E3E7EC] bg-white p-5 text-sm text-[#6B7785]">
+								No PO / quotation is valid for {period}. Untick the filter to see all documents.
+							</div>
 						{:else}
-							{#each docs as d}
+							{#each visibleDocs as { d, issue, run: pr }}
 								<button
 									class="block w-full rounded-xl border bg-white p-3 text-left transition {selectedDocId === d.id
 										? 'border-[#E8892B] ring-1 ring-[#E8892B]'
@@ -289,12 +330,17 @@
 								>
 									<div class="flex items-center justify-between gap-2">
 										<span class="font-mono text-xs font-semibold text-[#22344A]">{d.ref}</span>
-										<Pill variant={docStatusVariant(d.status)}>{d.status === 'Expired' ? 'PO expired' : d.status}</Pill>
+										<Pill variant={issue ? 'warn' : docStatusVariant(d.status)}>{issue ?? (d.status === 'Expired' ? 'PO expired' : d.status)}</Pill>
 									</div>
 									<div class="mt-1 flex justify-between text-xs text-[#6B7785]">
 										<span>{d.party}</span>
 										<span>Confidence {d.confidence ?? 0}%</span>
 									</div>
+									{#if pr}
+										<div class="mt-1 text-xs text-[#6B7785]">
+											{period}: {pr.status}{pr.invoice_no ? ` · ${pr.invoice_no}` : ''} · SGD {fmtMoney(pr.total)}
+										</div>
+									{/if}
 								</button>
 							{/each}
 						{/if}

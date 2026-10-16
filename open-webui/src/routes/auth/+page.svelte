@@ -260,35 +260,40 @@
 	{#if loaded}
 		<!-- TG Billing Coworker brand panel -->
 		<div
-			class="hidden md:flex fixed top-0 left-0 h-full w-[45%] z-40 flex-col justify-between bg-[#2B3C50] p-12 text-white"
+			class="hidden md:flex fixed top-0 left-0 h-full w-[30%] min-w-[260px] z-40 flex-col justify-between bg-[#2B3C50] px-8 py-8 text-white"
 			id="auth-brand-panel"
 		>
-			<div class="flex items-center gap-3">
-				<div class="flex size-12 items-center justify-center rounded-xl bg-white">
-					<TgLogo size={34} />
+			<div>
+				<div class="text-[10px] font-bold uppercase tracking-wider text-[#E8892B]">
+					TG Singapore · Finance &amp; Billing
 				</div>
-				<div>
-					<div class="text-lg font-bold leading-tight">Billing Coworker</div>
-					<div class="text-xs text-white/60">Powered by DBiz</div>
-				</div>
-			</div>
-			<div class="max-w-md">
-				<div class="text-3xl font-bold leading-snug">
-					Invoices prepared from your POs, timesheets and rules.
-				</div>
-				<p class="mt-4 text-sm text-white/70">
-					A deterministic rule engine does the calculation. Your Billing Coworker explains it, and
-					every change is confirmed and logged.
+				<div class="mt-6 text-[26px] font-bold leading-tight">Billing Coworker</div>
+				<p class="mt-3 text-[13px] leading-5 text-white/80">
+					Check billing readiness, resolve exceptions early and route invoice drafts to Finance for
+					approval, in one place.
 				</p>
+				<ul class="mt-6 space-y-3 text-[12px] leading-4 text-white/90">
+					{#each ['Billing readiness for every assignment', 'Invoicing instruction → PO → staff matching', 'Deterministic calculations with full traceability'] as item}
+						<li class="flex items-start gap-2.5">
+							<span
+								class="mt-px flex size-4 shrink-0 items-center justify-center rounded-full bg-[#E8892B] text-[10px] font-bold text-white"
+								>✓</span
+							>
+							<span>{item}</span>
+						</li>
+					{/each}
+				</ul>
 			</div>
-			<div class="text-xs text-white/50">APBA TG Human Resource Pte Ltd</div>
+			<div class="text-[10px] leading-4 text-white/60">
+				Powered by DBiz · Enterprise Azure OpenAI, tenant-isolated
+			</div>
 		</div>
 
 		<div
-			class="fixed bg-transparent min-h-screen w-full flex justify-center z-50 text-black dark:text-white md:pl-[45%]"
+			class="fixed bg-transparent min-h-screen w-full flex justify-center z-50 text-black dark:text-white md:pl-[30%] bg-[#F8F9FA]"
 			id="auth-container"
 		>
-			<div class="w-full px-6 min-h-screen flex flex-col text-center">
+			<div class="w-full px-6 min-h-screen flex flex-col text-left">
 				{#if mfaChallenge}
 					<div class="my-auto mx-auto w-full sm:max-w-md shrink-0">
 						<MfaChallengeForm
@@ -335,6 +340,12 @@
 									/>
 								</div>
 							{/if}
+							<div
+								class="mb-5 flex h-[86px] items-center justify-center gap-3 rounded-xl bg-white shadow-sm"
+							>
+								<TgLogo size={56} />
+								<span class="text-5xl font-extrabold leading-none text-[#E8892B]">TG</span>
+							</div>
 							<form
 								class=" flex flex-col justify-center"
 								on:submit={(e) => {
@@ -343,17 +354,23 @@
 								}}
 							>
 								<div class="mb-1">
-									<div class=" text-2xl font-normal">
+									<div class="text-xl font-bold text-[#22344A]">
 										{#if $config?.onboarding ?? false}
 											{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else if mode === 'ldap'}
 											{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
 										{:else if mode === 'signin'}
-											{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+											{$i18n.t('Sign in')}
 										{:else}
 											{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 										{/if}
 									</div>
+
+									{#if mode === 'signin' && !($config?.onboarding ?? false)}
+										<div class="mt-1 text-xs font-normal text-[#6B7785]">
+											Use the account issued by your platform administrator.
+										</div>
+									{/if}
 
 									{#if $config?.onboarding ?? false}
 										<div class="mt-1 text-xs font-normal text-gray-600 dark:text-gray-500">
@@ -371,14 +388,14 @@
 											<div class="mb-2">
 												<label
 													for="name"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="text-xs font-semibold text-[#22344A] text-left mb-1 mt-2 block"
 													>{$i18n.t('Name')}</label
 												>
 												<input
 													bind:value={name}
 													type="text"
 													id="name"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													class="my-0.5 w-full rounded-lg border border-[#E3E7EC] bg-white px-3 py-2.5 text-[0.8125rem] leading-5 outline-hidden placeholder:text-gray-400 focus:border-[#E8892B]"
 													autocomplete="name"
 													placeholder={$i18n.t('Enter Your Full Name')}
 													required
@@ -390,13 +407,13 @@
 											<div class="mb-2">
 												<label
 													for="username"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="text-xs font-semibold text-[#22344A] text-left mb-1 mt-2 block"
 													>{$i18n.t('Username')}</label
 												>
 												<input
 													bind:value={ldapUsername}
 													type="text"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													class="my-0.5 w-full rounded-lg border border-[#E3E7EC] bg-white px-3 py-2.5 text-[0.8125rem] leading-5 outline-hidden placeholder:text-gray-400 focus:border-[#E8892B]"
 													autocomplete="username"
 													name="username"
 													id="username"
@@ -408,17 +425,17 @@
 											<div class="mb-2">
 												<label
 													for="email"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="text-xs font-semibold text-[#22344A] text-left mb-1 mt-2 block"
 													>{$i18n.t('Email')}</label
 												>
 												<input
 													bind:value={email}
 													type="email"
 													id="email"
-													class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
+													class="my-0.5 w-full rounded-lg border border-[#E3E7EC] bg-white px-3 py-2.5 text-[0.8125rem] leading-5 outline-hidden placeholder:text-gray-400 focus:border-[#E8892B]"
 													autocomplete="email"
 													name="email"
-													placeholder={$i18n.t('Enter Your Email')}
+													placeholder="name@tg-hr.com"
 													required
 												/>
 											</div>
@@ -427,15 +444,17 @@
 										<div>
 											<label
 												for="password"
-												class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+												class="text-xs font-semibold text-[#22344A] text-left mb-1 mt-2 block"
 												>{$i18n.t('Password')}</label
 											>
 											<SensitiveInput
 												bind:value={password}
 												type="password"
 												id="password"
-												class="my-0.5 w-full text-[0.8125rem] leading-5 outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-												placeholder={$i18n.t('Enter Your Password')}
+												outerClassName="flex flex-1 items-center rounded-lg border border-[#E3E7EC] bg-white px-3 py-1.5 focus-within:border-[#E8892B]"
+												showButtonClassName="text-xs font-semibold text-[#0E7C8F]"
+												class="text-[0.8125rem] leading-5 placeholder:text-gray-400"
+												placeholder={$i18n.t('Enter your password')}
 												autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 												name="password"
 												screenReader={true}
@@ -448,7 +467,7 @@
 											<div class="mt-2">
 												<label
 													for="confirm-password"
-													class="text-[0.8125rem] leading-5 font-normal text-left mb-1 block"
+													class="text-xs font-semibold text-[#22344A] text-left mb-1 mt-2 block"
 													>{$i18n.t('Confirm Password')}</label
 												>
 												<SensitiveInput
@@ -463,6 +482,17 @@
 												/>
 											</div>
 										{/if}
+									</div>
+								{/if}
+								{#if mode === 'signin'}
+									<div class="mt-4 flex items-center justify-between text-xs text-[#33414F]">
+										<label class="flex items-center gap-2">
+											<input type="checkbox" class="rounded border-[#E3E7EC]" /> Keep me signed in
+										</label>
+										<a
+											class="font-semibold text-[#0E7C8F] underline"
+											href="mailto:admin@dbizlab.com?subject=TG%20password%20reset">Forgot password?</a
+										>
 									</div>
 								{/if}
 								<div class="mt-5">
@@ -527,6 +557,19 @@
 									{/if}
 								</div>
 							</form>
+
+							<div
+								class="mt-5 flex items-start gap-2 rounded-lg border border-[#F3D9BF] bg-[#FDF3E9] p-3 text-[11px] leading-4 text-[#7A4A1E]"
+							>
+								<span class="mt-px text-[#C8610F]">ⓘ</span>
+								<span
+									>Proof of Verification environment. Dummy and redacted data only; no live employee or
+									client data.</span
+								>
+							</div>
+							<div class="mt-5 text-center text-[11px] text-[#6B7785]">
+								Need access? Contact your platform administrator.
+							</div>
 
 							{#if Object.keys($config?.oauth?.providers ?? {}).length > 0}
 								<div class="inline-flex items-center justify-center w-full">
