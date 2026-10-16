@@ -45,6 +45,7 @@
 	let maxStep = 1;
 	let loading = true;
 	let busy = false;
+	let workLabel = '';
 	let error = '';
 	let notice = '';
 
@@ -65,10 +66,13 @@
 	let selected: string[] = [];
 	let dlFormat: 'both' | 'invoice' | 'report' = 'both';
 	let dlBusy = false;
+	let previewBusy = false;
 	let preview: { run: any; html: string } | null = null;
 	let previewFrame: HTMLIFrameElement;
 
-	$: periodRuns = allRuns.filter((r: any) => r.period === period);
+	const newest = (a: any, b: any) =>
+		(b.updated_at ?? b.created_at ?? '').localeCompare(a.updated_at ?? a.created_at ?? '');
+	$: periodRuns = allRuns.filter((r: any) => r.period === period).sort(newest);
 	$: approvedRuns = periodRuns.filter((r: any) => r.status === 'Approved');
 	$: awaitingRuns = periodRuns.filter((r: any) => r.status !== 'Approved');
 	$: flaggedRuns = periodRuns.filter((r: any) => isFlagged(r));
@@ -85,11 +89,14 @@
 	};
 
 	const previewRun = async (r: any) => {
+		previewBusy = true;
+		workLabel = `Loading preview of ${r.invoice_no ?? r.id}…`;
 		try {
 			preview = { run: r, html: await getInvoiceHtml(localStorage.token, r.id) };
 		} catch (e) {
 			error = `${e}`;
 		}
+		previewBusy = false;
 	};
 
 	const printPreview = () => previewFrame?.contentWindow?.print();
@@ -97,6 +104,7 @@
 	const downloadMany = async (rs: any[]) => {
 		if (!rs.length) return;
 		dlBusy = true;
+		workLabel = rs.length > 1 ? `Preparing ZIP of ${rs.length} invoices…` : 'Preparing download…';
 		error = '';
 		try {
 			const files: { name: string; data: Blob }[] = [];
@@ -126,11 +134,12 @@
 
 	const approveRow = async (r: any) => {
 		busy = true;
+		workLabel = 'Approving invoice and generating the invoice + billing report…';
 		error = '';
 		try {
 			await approveRun(localStorage.token, r.id);
 			await loadStep4();
-			notice = `${r.invoice_no ?? r.id} approved.`;
+			notice = `${r.invoice_no ?? r.id} approved. The invoice and billing report are ready to download.`;
 		} catch (e) {
 			error = `${e}`;
 		}
@@ -157,7 +166,9 @@
 		issue: validityIssue(d, period),
 		run: allRuns.find((r) => r.document_id === d.id && r.period === period) ?? null
 	}));
-	$: visibleDocs = onlyValid ? periodDocs.filter((x) => !x.issue) : periodDocs;
+	$: visibleDocs = (onlyValid ? periodDocs.filter((x) => !x.issue) : periodDocs)
+		.slice()
+		.sort((a, b) => (b.d.created_at ?? '').localeCompare(a.d.created_at ?? ''));
 	// keep the selection on a document that applies to the chosen period
 	$: if (!loading && visibleDocs.length && !visibleDocs.some((x) => x.d.id === selectedDocId)) {
 		selectedDocId = (visibleDocs.find((x) => x.d.status === 'Ready') ?? visibleDocs[0]).d.id;
@@ -230,6 +241,7 @@
 	const confirmAndCalculate = async () => {
 		if (!selectedDoc) return;
 		busy = true;
+		workLabel = 'Generating draft invoice from PO, timesheets and leave…';
 		error = '';
 		try {
 			if (selectedDoc.status === 'Needs confirmation') {
@@ -249,6 +261,7 @@
 	const openExisting = async () => {
 		if (!periodRun) return;
 		busy = true;
+		workLabel = 'Opening invoice…';
 		error = '';
 		try {
 			run = await getRun(localStorage.token, periodRun.id);
@@ -299,6 +312,7 @@
 			if (note === undefined) return;
 		}
 		busy = true;
+		workLabel = outcome === 'approve' ? 'Validating, then approving invoice…' : 'Saving validation…';
 		error = '';
 		try {
 			const res = await validateRun(localStorage.token, run.id, { outcome, note });
@@ -332,10 +346,12 @@
 	const approve = async () => {
 		if (!run) return;
 		busy = true;
+		workLabel = 'Approving invoice and generating the invoice + billing report…';
 		error = '';
 		try {
 			run = await approveRun(localStorage.token, run.id);
 			await loadStep4();
+			notice = `${run.invoice_no ?? run.id} approved. The invoice and billing report are ready to download below.`;
 		} catch (e) {
 			error = `${e}`;
 		}
@@ -846,6 +862,19 @@
 				</div>
 			</div>
 			<iframe bind:this={previewFrame} title="Invoice preview" class="min-h-0 w-full flex-1 rounded-b-xl" srcdoc={preview.html}></iframe>
+		</div>
+	</div>
+{/if}
+
+{#if busy || dlBusy || previewBusy}
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-[#22344A]/50 p-4" role="alert" aria-live="assertive" aria-busy="true">
+		<div class="flex max-w-sm flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 text-center shadow-2xl">
+			<svg class="size-10 animate-spin text-[#C8610F]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+				<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" stroke-width="4" />
+				<path d="M22 12a10 10 0 00-10-10" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+			</svg>
+			<div class="text-sm font-semibold text-[#22344A]">{workLabel || 'Working…'}</div>
+			<div class="text-xs text-[#6B7785]">Please wait, this can take a few seconds.</div>
 		</div>
 	</div>
 {/if}

@@ -23,6 +23,8 @@
 	let tab: 'documents' | 'employees' | 'timesheets' = 'documents';
 
 	let docs: TgDocument[] = [];
+	$: sortedDocs = [...docs].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+	$: sortedEmployees = [...employees].reverse();
 	let employees: Employee[] = [];
 	let loading = true;
 	let error = '';
@@ -355,7 +357,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each docs as d}
+								{#each sortedDocs as d}
 									<tr
 										class="cursor-pointer border-t border-[#E3E7EC] hover:bg-[#FAFBFC] {selectedDoc?.id ===
 										d.id
@@ -510,7 +512,7 @@
 			{:else}
 				<!-- mobile: one card per employee -->
 				<ul class="divide-y divide-[#E3E7EC] md:hidden">
-					{#each employees as e}
+					{#each sortedEmployees as e}
 						<li class="p-4">
 							<div class="flex items-start justify-between gap-3">
 								<div class="min-w-0">
@@ -542,7 +544,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each employees as e}
+						{#each sortedEmployees as e}
 							<tr class="border-t border-[#E3E7EC]">
 								<td class="whitespace-nowrap px-4 py-2 font-mono text-xs">{e.id}</td>
 								{#each empFields as f}

@@ -57,7 +57,7 @@
 		}
 	};
 
-	$: items = queue?.items ?? [];
+	$: items = [...(queue?.items ?? [])].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id.localeCompare(a.id));
 	$: selected = items.find((i) => i.id === selectedId) ?? null;
 
 	const load = async () => {
