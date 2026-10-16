@@ -235,8 +235,7 @@ def seed(store) -> None:
 def generate_runs(store) -> None:
     """Pre-calculate runs for every document x period (Jul-Oct 2026).
 
-    Jul-Sep with no failing checks are Approved (invoice numbers assigned, history);
-    October and anything with a failing check stay Draft so they can be reviewed.
+    All runs start as Draft; approving assigns the invoice number.
     """
     from . import engine
 
@@ -249,7 +248,7 @@ def generate_runs(store) -> None:
             staff = [by_id[i] for i in doc['staff_ids']]
             built = engine.build_run(doc, period, staff, tss, {}, {})
             failing = [c for c in built['checks'] if c['result'] == 'Fail']
-            approved = period != PERIODS[-1] and not failing
+            approved = False  # all seeded runs start as Draft so they can be reviewed and approved in the app
             run = {
                 'id': f'RUN-{doc["id"][4:]}-{period.replace("-", "")}',
                 'document_id': doc['id'],
