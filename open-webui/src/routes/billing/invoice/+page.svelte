@@ -62,6 +62,80 @@
 	let runs: Run[] = [];
 	let audit: AuditEntry[] = [];
 	let allRuns: Run[] = [];
+	let selected: string[] = [];
+	let dlFormat: 'both' | 'invoice' | 'report' = 'both';
+	let dlBusy = false;
+	let preview: { run: any; html: string } | null = null;
+	let previewFrame: HTMLIFrameElement;
+
+	$: periodRuns = allRuns.filter((r: any) => r.period === period);
+	$: approvedRuns = periodRuns.filter((r: any) => r.status === 'Approved');
+	$: awaitingRuns = periodRuns.filter((r: any) => r.status !== 'Approved');
+	$: flaggedRuns = periodRuns.filter((r: any) => isFlagged(r));
+	$: stalledRuns = awaitingRuns.filter(
+		(r: any) => r.status === 'Awaiting validation' && Date.now() - new Date(r.updated_at).getTime() > 48 * 3600e3
+	);
+	$: periodAudit = audit.filter((a: any) => !a.run_id || periodRuns.some((r: any) => r.id === a.run_id)).slice(-30).reverse();
+	$: selected = selected.filter((id) => approvedRuns.some((r: any) => r.id === id));
+
+	const isFlagged = (r: any) => r.flagged ?? (r.validation?.outcome === 'flag' && r.status !== 'Approved');
+
+	const toggleAll = () => {
+		selected = selected.length === approvedRuns.length ? [] : approvedRuns.map((r: any) => r.id);
+	};
+
+	const previewRun = async (r: any) => {
+		try {
+			preview = { run: r, html: await getInvoiceHtml(localStorage.token, r.id) };
+		} catch (e) {
+			error = `${e}`;
+		}
+	};
+
+	const printPreview = () => previewFrame?.contentWindow?.print();
+
+	const downloadMany = async (rs: any[]) => {
+		if (!rs.length) return;
+		dlBusy = true;
+		error = '';
+		try {
+			const files: { name: string; data: Blob }[] = [];
+			for (const r of rs) {
+				const n = r.invoice_no ?? r.id;
+				if (dlFormat !== 'report') {
+					files.push({ name: `${n}.html`, data: new Blob([await getInvoiceHtml(localStorage.token, r.id)], { type: 'text/html' }) });
+				}
+				if (dlFormat !== 'invoice') {
+					files.push({ name: `${n}-billing-report.csv`, data: await getBillingReportCsv(localStorage.token, r.id) });
+				}
+			}
+			if (files.length === 1) {
+				saveBlob(files[0].data, files[0].name);
+			} else {
+				const { default: JSZip } = await import('jszip');
+				const zip = new JSZip();
+				for (const f of files) zip.file(f.name, f.data);
+				saveBlob(await zip.generateAsync({ type: 'blob' }), rs.length === 1 ? `${rs[0].invoice_no ?? rs[0].id}.zip` : `invoices-${period}.zip`);
+			}
+			notice = `Downloaded ${rs.length} invoice${rs.length > 1 ? 's' : ''}.`;
+		} catch (e) {
+			error = `Download failed: ${e}`;
+		}
+		dlBusy = false;
+	};
+
+	const approveRow = async (r: any) => {
+		busy = true;
+		error = '';
+		try {
+			await approveRun(localStorage.token, r.id);
+			await loadStep4();
+			notice = `${r.invoice_no ?? r.id} approved.`;
+		} catch (e) {
+			error = `${e}`;
+		}
+		busy = false;
+	};
 	let onlyValid = true;
 
 	const periodBounds = (p: string) => {
@@ -119,6 +193,7 @@
 	const goStep = (n: number) => {
 		step = n;
 		maxStep = Math.max(maxStep, n);
+		if (n === 4) loadStep4();
 		if (n !== 2) panelOpen = false;
 	};
 
@@ -136,6 +211,7 @@
 			error = `${e}`;
 		}
 		loading = false;
+		if (allRuns.length) maxStep = 4;
 		loadTimesheets();
 	};
 
@@ -246,7 +322,7 @@
 		try {
 			const [r, a] = await Promise.all([getRuns(localStorage.token), getAudit(localStorage.token)]);
 			allRuns = r ?? [];
-			runs = (r ?? []).filter((x) => !run || x.document_id === run.document_id);
+			runs = r ?? [];
 			audit = a ?? [];
 		} catch (e) {
 			error = `${e}`;
@@ -625,102 +701,109 @@
 
 				<!-- STEP 4 -->
 			{:else if step === 4}
-				{#if !run}
-					<div class="mt-5 rounded-xl border border-[#E3E7EC] bg-white p-6 text-sm text-[#6B7785]">
-						No run to approve.
+				<div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+					{#each [['Approved', approvedRuns.length, ''], ['Awaiting validation', awaitingRuns.length, ''], ['Flagged to teams', flaggedRuns.length, 'text-[#C8610F]'], ['Stalled > 48h', stalledRuns.length, 'text-[#C8610F]']] as [l, v, c]}
+						<div class="rounded-xl border border-[#E3E7EC] bg-white p-4">
+							<div class="text-[11px] font-semibold uppercase tracking-wide text-[#6B7785]">{l}</div>
+							<div class="mt-1 text-3xl font-bold {c || 'text-[#22344A]'}">{v}</div>
+						</div>
+					{/each}
+				</div>
+
+				<div class="mt-4 rounded-xl border border-[#E3E7EC] bg-[#F6F7F9]">
+					<div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+						<div class="font-semibold text-[#22344A]">
+							Invoices for {period} · select approved invoices to download in bulk
+						</div>
+						<div class="flex flex-wrap items-center gap-2">
+							<label class="flex items-center gap-2 text-xs text-[#6B7785]">
+								Format
+								<select bind:value={dlFormat} class="rounded-lg border border-[#E3E7EC] bg-white px-2 py-1.5 text-sm text-[#33414F]">
+									<option value="both">Invoice + billing report</option>
+									<option value="invoice">Invoice only (HTML)</option>
+									<option value="report">Billing report only (CSV)</option>
+								</select>
+							</label>
+							<button
+								class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B4560A] disabled:opacity-50"
+								disabled={!selected.length || dlBusy}
+								on:click={() => downloadMany(periodRuns.filter((r) => selected.includes(r.id)))}
+							>
+								{dlBusy ? 'Preparing…' : `Download selected (ZIP)${selected.length ? ` · ${selected.length}` : ''}`}
+							</button>
+						</div>
 					</div>
-				{:else}
-					<div class="mt-5 grid gap-4 lg:grid-cols-3">
-						<div class="space-y-4 lg:col-span-2">
-							<div class="rounded-xl border border-[#E3E7EC] bg-white">
-								<div class="border-b border-[#E3E7EC] px-4 py-3 font-semibold text-[#22344A]">Invoices</div>
-								<div class="overflow-x-auto">
-								<table class="w-full min-w-[480px] text-sm">
-									<thead class="bg-[#F1F3F6] text-left text-[11px] uppercase text-[#6B7785]">
-										<tr>
-											<th class="px-4 py-2">Invoice</th>
-											<th class="px-4 py-2">Period</th>
-											<th class="px-4 py-2">Status</th>
-											<th class="px-4 py-2 text-right">Total (SGD)</th>
+					{#if !periodRuns.length}
+						<div class="border-t border-[#E3E7EC] bg-white p-6 text-sm text-[#6B7785]">
+							No invoices for {period}. Generate one in step 1.
+						</div>
+					{:else}
+						<div class="overflow-x-auto border-t border-[#E3E7EC] bg-white">
+							<table class="w-full min-w-[860px] text-sm">
+								<thead class="text-left text-xs font-semibold text-[#33414F]">
+									<tr>
+										<th class="px-4 py-3">
+											<input
+												type="checkbox"
+												aria-label="Select all approved"
+												checked={approvedRuns.length > 0 && selected.length === approvedRuns.length}
+												on:change={toggleAll}
+											/>
+										</th>
+										<th class="px-2 py-3">Invoice</th>
+										<th class="px-2 py-3">PO / Quotation</th>
+										<th class="px-2 py-3">Agency</th>
+										<th class="px-2 py-3 text-right">Staff</th>
+										<th class="px-2 py-3 text-right">Total (SGD)</th>
+										<th class="px-2 py-3">Status</th>
+										<th class="px-2 py-3">Reviewer</th>
+										<th class="px-4 py-3"></th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each periodRuns as r}
+										<tr class="border-t border-[#E3E7EC]">
+											<td class="px-4 py-3">
+												<input type="checkbox" disabled={r.status !== 'Approved'} bind:group={selected} value={r.id} aria-label="Select {r.invoice_no ?? r.id}" />
+											</td>
+											<td class="whitespace-nowrap px-2 py-3 font-mono text-xs">{r.invoice_no ?? r.id}</td>
+											<td class="whitespace-nowrap px-2 py-3 font-mono text-xs">{r.document_ref ?? ''}</td>
+											<td class="px-2 py-3">{r.party ?? ''}</td>
+											<td class="px-2 py-3 text-right">{r.staff ?? r.lines?.length ?? ''}</td>
+											<td class="px-2 py-3 text-right tabular-nums">{fmtMoney(r.total)}</td>
+											<td class="px-2 py-3">
+												<Pill variant={isFlagged(r) ? 'warn' : runStatusVariant(r.status)}>{isFlagged(r) ? 'Flagged' : r.status}</Pill>
+											</td>
+											<td class="px-2 py-3 text-xs text-[#6B7785]">{r.approved_by ?? '—'}</td>
+											<td class="whitespace-nowrap px-4 py-3 text-right text-xs">
+												<button class="font-semibold text-[#0E7C8F] underline" on:click={() => previewRun(r)}>Preview</button>
+												{#if r.status === 'Approved'}
+													· <button class="font-semibold text-[#0E7C8F] underline" disabled={dlBusy} on:click={() => downloadMany([r])}>Download</button>
+												{:else}
+													· <button class="font-semibold text-[#C8610F] underline" disabled={busy} on:click={() => approveRow(r)}>Approve</button>
+												{/if}
+											</td>
 										</tr>
-									</thead>
-									<tbody>
-										{#each runs.length ? runs : [run] as r}
-											<tr class="border-t border-[#EEF0F3] {r.id === run.id ? 'bg-[#FDF1E6]' : ''}">
-												<td class="px-4 py-2 font-mono text-xs">{r.invoice_no ?? `${r.id} (no number yet)`}</td>
-												<td class="px-4 py-2">{r.period}</td>
-												<td class="px-4 py-2"><Pill variant={runStatusVariant(r.status)}>{r.status}</Pill></td>
-												<td class="px-4 py-2 text-right tabular-nums">{fmtMoney(r.total)}</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-								</div>
-							</div>
-
-							<div class="rounded-xl border border-[#E3E7EC] bg-white">
-								<div class="border-b border-[#E3E7EC] px-4 py-3 font-semibold text-[#22344A]">Audit log</div>
-								{#if !audit.length}
-									<div class="p-4 text-sm text-[#6B7785]">No audit entries yet.</div>
-								{:else}
-									<ul class="max-h-72 divide-y divide-[#EEF0F3] overflow-y-auto text-sm">
-										{#each audit as a}
-											<li class="px-4 py-2">
-												<div>{a.action ?? a.detail ?? JSON.stringify(a)}</div>
-												<div class="text-[11px] text-[#6B7785]">{a.actor ?? ''} {a.ts ?? a.timestamp ?? ''}</div>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</div>
+									{/each}
+								</tbody>
+							</table>
 						</div>
+					{/if}
+				</div>
 
-						<div class="space-y-4">
-							<div class="rounded-xl border border-[#E3E7EC] bg-white p-4">
-								<div class="mb-1 font-semibold text-[#22344A]">Approve</div>
-								<div class="mb-3 text-sm text-[#6B7785]">
-									Total SGD {fmtMoney(run.total)} · <Pill variant={runStatusVariant(run.status)}>{run.status}</Pill>
-								</div>
-								<button
-									class="w-full rounded-lg bg-[#C8610F] px-3 py-2 text-sm font-semibold text-white hover:bg-[#B4560A] disabled:opacity-50"
-									disabled={busy || run.status === 'Approved'}
-									on:click={approve}
-								>
-									{run.status === 'Approved' ? `Approved ${run.invoice_no ?? ''}` : 'Approve invoice'}
-								</button>
-							</div>
-							<div class="rounded-xl border border-[#E3E7EC] bg-white p-4">
-								<div class="mb-3 font-semibold text-[#22344A]">Download</div>
-								<div class="space-y-2">
-									<button
-										class="w-full rounded-lg border border-[#D5DBE2] px-3 py-2 text-left text-sm hover:bg-[#F6F7F9] disabled:opacity-50"
-										disabled={run.status !== 'Approved'}
-										on:click={downloadInvoice}
-									>
-										Download invoice (HTML)
-									</button>
-									<button
-										class="w-full rounded-lg border border-[#D5DBE2] px-3 py-2 text-left text-sm hover:bg-[#F6F7F9] disabled:opacity-50"
-										disabled={run.status !== 'Approved'}
-										on:click={openInvoice}
-									>
-										Open printable invoice
-									</button>
-									<button
-										class="w-full rounded-lg border border-[#D5DBE2] px-3 py-2 text-left text-sm hover:bg-[#F6F7F9] disabled:opacity-50"
-										disabled={run.status !== 'Approved'}
-										on:click={downloadCsv}
-									>
-										Download billing report (CSV)
-									</button>
-									{#if run.status !== 'Approved'}
-										<div class="text-[11px] text-[#6B7785]">Downloads unlock after approval.</div>
-									{/if}
-								</div>
-							</div>
-						</div>
-					</div>
-				{/if}
+				<div class="mt-4 rounded-xl border border-[#E3E7EC] bg-white p-4">
+					<div class="font-semibold text-[#22344A]">Audit log</div>
+					<div class="text-xs text-[#6B7785]">All validations, fixes, approvals and downloads are recorded.</div>
+					{#if !periodAudit.length}
+						<div class="mt-2 text-sm text-[#6B7785]">No audit entries yet.</div>
+					{:else}
+						<ul class="mt-2 max-h-64 space-y-1 overflow-y-auto font-mono text-[11px] text-[#33414F]">
+							{#each periodAudit as a}
+								<li class="flex gap-3"><span class="shrink-0 text-[#6B7785]">[{(a.ts ?? '').replace('T', ' ').slice(5, 16)}]</span><span><b>[{a.actor}]</b> {a.detail ?? a.action}</span></li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -745,3 +828,24 @@
 		</aside>
 	{/if}
 </div>
+
+{#if preview}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-6" role="dialog" aria-modal="true">
+		<div class="flex h-full max-h-[92dvh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-xl">
+			<div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#E3E7EC] px-4 py-3">
+				<div class="font-semibold text-[#22344A]">
+					Preview {preview.run.invoice_no ?? preview.run.id}
+					<span class="ml-2 text-xs font-normal text-[#6B7785]">{preview.run.status}</span>
+				</div>
+				<div class="flex gap-2">
+					<button class="rounded-lg border border-[#D5DBE2] px-3 py-1.5 text-sm" on:click={printPreview}>Print / Save as PDF</button>
+					{#if preview.run.status === 'Approved'}
+						<button class="rounded-lg bg-[#C8610F] px-3 py-1.5 text-sm font-semibold text-white" on:click={() => downloadMany([preview.run])}>Download</button>
+					{/if}
+					<button class="rounded-lg border border-[#D5DBE2] px-3 py-1.5 text-sm" on:click={() => (preview = null)}>Close</button>
+				</div>
+			</div>
+			<iframe bind:this={previewFrame} title="Invoice preview" class="min-h-0 w-full flex-1 rounded-b-xl" srcdoc={preview.html}></iframe>
+		</div>
+	</div>
+{/if}

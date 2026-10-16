@@ -176,6 +176,10 @@ def _run_summary(r: dict) -> dict:
         'total': r.get('total'),
         'invoice_no': r.get('invoice_no'),
         'updated_at': r.get('updated_at'),
+        'staff': len(r.get('lines') or []),
+        'approved_by': r.get('approved_by'),
+        'approved_at': r.get('approved_at'),
+        'flagged': (r.get('validation') or {}).get('outcome') == 'flag' and r['status'] != 'Approved',
     }
 
 
