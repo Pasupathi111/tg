@@ -79,7 +79,7 @@
 	const isResolved = (i: ReviewItem) => /resolved/i.test(i.status ?? '');
 </script>
 
-<div class="mx-auto max-w-6xl p-6">
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
 	<PageHeader
 		title="Review Queue"
 		subtitle="Exceptions raised by the rule engine. Resolve them before invoicing."

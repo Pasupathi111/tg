@@ -146,7 +146,7 @@
 		(d.staff_ids ?? []).map((id) => employees.find((e) => e.id === id)?.name ?? id).join(', ');
 </script>
 
-<div class="mx-auto max-w-6xl p-6">
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
 	<PageHeader
 		title="Master Data"
 		subtitle="Knowledge base of POs, quotations and contracts, plus the employee master. The assistant never edits these records."
@@ -392,7 +392,7 @@
 {#if editing}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
 		<form
-			class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl"
+			class="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-5"
 			on:submit|preventDefault={saveEmp}
 		>
 			<div class="mb-3 text-lg font-bold text-[#22344A]">

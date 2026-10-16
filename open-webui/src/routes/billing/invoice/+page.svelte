@@ -255,7 +255,7 @@
 
 <div class="flex h-full">
 	<div class="min-w-0 flex-1 overflow-y-auto">
-		<div class="mx-auto max-w-6xl p-6">
+		<div class="mx-auto max-w-6xl p-4 sm:p-6">
 			<PageHeader
 				title="Invoice Preparation"
 				subtitle="Four steps from source documents to an approved invoice. All figures come from the deterministic rule engine."
@@ -358,8 +358,8 @@
 								<tbody>
 									{#each [['Billing basis', ins.billing_basis], ['Management fee', ins.fee_pct != null ? `${ins.fee_pct}%` : null], ['GST', ins.gst_pct != null ? `${ins.gst_pct}%` : null], ['Rates', rateEntries.map(([k, v]) => `${k.replace('_', '-')}: ${v}`).join(' · ')], ['Period rule', ins.period_rule], ['Invoice split', ins.invoice_split], ['Mandatory references', (ins.mandatory_references ?? []).join(', ')], ['Supporting documents', (ins.supporting_documents ?? []).join(', ')], ['Tax treatment', ins.tax_treatment], ['Submission channel', ins.submission_channel], ['Valid', ins.valid_from || ins.valid_to ? `${ins.valid_from ?? '—'} → ${ins.valid_to ?? '—'}` : null]] as [k, v]}
 										<tr class="border-t border-[#EEF0F3]">
-											<td class="w-40 py-1.5 pr-3 text-xs text-[#6B7785]">{k}</td>
-											<td class="py-1.5">{v || '—'}</td>
+											<td class="w-28 py-1.5 pr-3 align-top text-xs text-[#6B7785] sm:w-40">{k}</td>
+											<td class="break-words py-1.5">{v || '—'}</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -551,7 +551,8 @@
 						<div class="space-y-4 lg:col-span-2">
 							<div class="rounded-xl border border-[#E3E7EC] bg-white">
 								<div class="border-b border-[#E3E7EC] px-4 py-3 font-semibold text-[#22344A]">Invoices</div>
-								<table class="w-full text-sm">
+								<div class="overflow-x-auto">
+								<table class="w-full min-w-[480px] text-sm">
 									<thead class="bg-[#F1F3F6] text-left text-[11px] uppercase text-[#6B7785]">
 										<tr>
 											<th class="px-4 py-2">Invoice</th>
@@ -571,6 +572,7 @@
 										{/each}
 									</tbody>
 								</table>
+								</div>
 							</div>
 
 							<div class="rounded-xl border border-[#E3E7EC] bg-white">
@@ -643,7 +645,7 @@
 	<!-- slide-in assistant panel (step 2 only) -->
 	{#if step === 2 && panelOpen}
 		<aside
-			class="fixed inset-y-0 right-0 z-30 flex w-[min(320px,100vw)] flex-col border-l border-[#E3E7EC] bg-white shadow-xl md:static md:z-auto md:shadow-none"
+			class="fixed inset-y-0 right-0 z-30 flex w-[min(320px,100vw)] flex-col border-l border-[#E3E7EC] bg-white shadow-xl xl:static xl:z-auto xl:shadow-none"
 			aria-label="Billing Coworker"
 		>
 			<div class="flex items-center justify-between border-b border-[#E3E7EC] px-4 py-3">

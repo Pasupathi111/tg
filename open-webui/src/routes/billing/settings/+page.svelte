@@ -86,7 +86,7 @@
 	};
 </script>
 
-<div class="mx-auto max-w-4xl p-6">
+<div class="mx-auto max-w-4xl p-4 sm:p-6">
 	<PageHeader
 		title="Settings"
 		subtitle="Company details and the Singapore calculation rules used by the rule engine."

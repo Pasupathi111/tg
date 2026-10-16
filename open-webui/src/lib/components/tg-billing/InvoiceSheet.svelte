@@ -10,7 +10,7 @@
 	$: refs = ins.mandatory_references ?? [];
 </script>
 
-<div class="rounded-xl border border-[#E3E7EC] bg-white p-8 shadow-sm">
+<div class="rounded-xl border border-[#E3E7EC] bg-white p-4 shadow-sm sm:p-8">
 	<div class="flex items-start justify-between">
 		<div class="flex items-center gap-2">
 			<TgLogo size={36} />

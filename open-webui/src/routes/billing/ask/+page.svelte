@@ -24,7 +24,7 @@
 	});
 </script>
 
-<div class="mx-auto flex h-full max-w-4xl flex-col p-6">
+<div class="mx-auto flex h-full max-w-4xl flex-col p-3 sm:p-6">
 	<PageHeader
 		title="Ask Me"
 		subtitle="Ask about a PO, a rule or a calculation. The assistant explains; the rule engine calculates."

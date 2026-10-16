@@ -46,7 +46,7 @@
 	];
 </script>
 
-<div class="mx-auto max-w-6xl p-6">
+<div class="mx-auto max-w-6xl p-4 sm:p-6">
 	<PageHeader
 		title="Dashboard"
 		subtitle="Welcome{$user?.name ? `, ${$user.name}` : ''}. APBA TG Human Resource Pte Ltd — invoice orchestration overview."
