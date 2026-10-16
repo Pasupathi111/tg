@@ -37,7 +37,8 @@ def _emp(id_, name, code, party, desig, basis, age=34, res='citizen', **kw):
 
 
 PROJECT_CODES = {'Agency A': 'PRJ-2041', 'Agency B': 'PRJ-2043', 'Agency E': 'PRJ-2047', 'Agency C': 'PRJ-2048',
-                 'Agency D': 'PRJ-2050', 'Agency F': 'PRJ-2094'}
+                 'Agency D': 'PRJ-2050', 'Agency F': 'PRJ-2094', 'Agency G': 'PRJ-2052', 'Agency H': 'PRJ-2055',
+                 'Agency I': 'PRJ-2060', 'Agency J': 'PRJ-2061'}
 
 
 def _with_projects(emps):
@@ -70,6 +71,22 @@ def employees():
              daily_rate=300),
         _emp('EMP-K', 'Officer K - Grace Lee', 'TG-0124', 'Agency F', 'Marketing Executive', 'monthly', 27, 'citizen',
              monthly_salary=4500),
+        _emp('EMP-N', 'Officer N - Hannah Goh', 'TG-0150', 'Agency G', 'Customer Service Officer', 'monthly', 28, 'citizen',
+             monthly_salary=3600),
+        _emp('EMP-O', 'Officer O - Farid Rahman', 'TG-0151', 'Agency G', 'Customer Service Officer', 'monthly', 31, 'pr',
+             monthly_salary=3400),
+        _emp('EMP-P', 'Officer P - Samuel Teo', 'TG-0160', 'Agency H', 'Operations Officer', 'monthly', 35, 'citizen',
+             monthly_salary=4000),
+        _emp('EMP-Q', 'Officer Q - Jia Hui Tan', 'TG-0161', 'Agency H', 'Operations Assistant', 'hourly', 26, 'citizen',
+             hourly_rate=20),
+        _emp('EMP-R', 'Officer R - Vikram Singh', 'TG-0162', 'Agency H', 'Loader', 'weekly', 39, 'foreign',
+             weekly_rate=950, other_contributions=[{'label': 'Foreign worker levy', 'amount': 300}]),
+        _emp('EMP-S', 'Officer S - Margaret Lau', 'TG-0170', 'Agency I', 'Senior Coordinator', 'monthly', 62, 'citizen',
+             monthly_salary=4700, allowances=[{'label': 'Transport allowance', 'amount': 100}]),
+        _emp('EMP-T', 'Officer T - Imran Hakim', 'TG-0171', 'Agency I', 'Field Support', 'daily', 34, 'pr',
+             daily_rate=280),
+        _emp('EMP-U', 'Officer U - Zoe Chan', 'TG-0180', 'Agency J', 'Data Annotator', 'hourly', 29, 'citizen',
+             hourly_rate=24),
         _emp('EMP-M', 'Officer M - Nur Aisyah', 'TG-0140', 'Agency E', 'Admin Support', 'monthly', 30, 'citizen',
              monthly_salary=3800),
         _emp('EMP-L', 'Officer L - Wang Jun', 'TG-0131', 'Agency F', 'Data Entry Clerk', 'hourly', 33, 'foreign',
@@ -100,6 +117,18 @@ def timesheets():
         'EMP-K': [(0, 0, 0), (1, 0, 0), (0, 0, 0), (2, 2, 0)],
         'EMP-L': [(0, 0, 0), (0, 0, 6), (0, 0, 0), (0, 0, 0)],
         'EMP-M': [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],  # Agency E: no PO on file
+        # Agency G: PO only starts 1 Oct, so Jul-Sep timesheets have no valid PO
+        'EMP-N': [(0, 0, 0), (0, 0, 0), (0, 0, 0), (1, 0, 2)],
+        'EMP-O': [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 2, 0)],
+        # Agency H: PO valid from Jul - approved, stalled, flagged histories
+        'EMP-P': [(0, 0, 0), (1, 0, 3), (0, 0, 0), (2, 1, 5)],
+        'EMP-Q': [(0, 0, 0), (0, 0, 4), (0, 0, 0), (0, 0, 2)],
+        'EMP-R': [(0, 0, 6), (0, 0, 8), (0, 0, 0), (0, 0, 10)],
+        # Agency I: senior CPF rate, daily-rate leave
+        'EMP-S': [(0, 0, 0), (2, 0, 0), (3, 4, 0), (0, 0, 0)],
+        'EMP-T': [(0, 0, 0), (0, 3, 0), (0, 0, 0), (1, 2, 0)],
+        # Agency J: quotation has no hourly rate
+        'EMP-U': [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],
     }
     half_days_of = {'EMP-D': [30, 28, 30, 31]}
     # timesheet gaps for dashboard readiness: int = days not yet submitted, 'missing' = no timesheet
@@ -109,6 +138,8 @@ def timesheets():
         ('EMP-D', '2026-09'): 'missing',
         ('EMP-L', '2026-09'): 1,
         ('EMP-B', '2026-10'): 4,
+        ('EMP-Q', '2026-09'): 2,
+        ('EMP-R', '2026-10'): 'missing',
     }
     for emp, rows in spec.items():
         for i, r in enumerate(rows):
@@ -208,6 +239,31 @@ def documents():
              {'billing_basis': 'cost_plus', 'fee_pct': 8, 'gst_pct': 8, 'valid_from': '2026-08-01',
               'valid_to': '2027-07-31', 'clause_refs': {'fee_pct': 'Clause 3.2', 'gst_pct': 'Clause 6.1'}},
              ['EMP-K', 'EMP-L']),
+        _doc('DOC-0450', '4500-0450', 'PO', 'Agency G', 'Ready', 100, 'PO-4500-0450-AgencyG.txt',
+             'Purchase Order 4500-0450. Agency G. Cost-plus, management fee 11% (Clause 4.1). Valid 01/10/2026 to 30/09/2027.',
+             {'billing_basis': 'cost_plus', 'fee_pct': 11, 'valid_from': '2026-10-01', 'valid_to': '2027-09-30',
+              'mandatory_references': ['PO number', 'Billing period', 'Cost centre'],
+              'clause_refs': {'fee_pct': 'Clause 4.1', 'gst_pct': 'Clause 5.2'}},
+             ['EMP-N', 'EMP-O']),
+        _doc('DOC-0460', '4500-0460', 'PO', 'Agency H', 'Ready', 100, 'PO_4500-0460_AgencyH.pdf',
+             'Purchase Order 4500-0460. Agency H. Cost-plus, management fee 9% (Clause 4.1). Valid 01/07/2026 to 30/06/2027.',
+             {'billing_basis': 'cost_plus', 'fee_pct': 9, 'valid_from': '2026-07-01', 'valid_to': '2027-06-30',
+              'clause_refs': {'fee_pct': 'Clause 4.1', 'gst_pct': 'Clause 5.2'}},
+             ['EMP-P', 'EMP-Q', 'EMP-R']),
+        _doc('DOC-3100', 'QTN-3100', 'Quotation', 'Agency I', 'Ready', 93, 'QTN-3100_AgencyI.docx',
+             'Quotation QTN-3100 for Agency I. Monthly S$5,000; half-day S$150; daily S$290. Valid 01/07/2026 to 30/06/2027.',
+             {'billing_basis': 'rate_card', 'fee_pct': None,
+              'rates': {'monthly': 5000, 'half_day': 150, 'daily': 290, 'weekly': None, 'hourly': None},
+              'mandatory_references': ['Quotation number', 'Billing period'],
+              'valid_from': '2026-07-01', 'valid_to': '2027-06-30', 'clause_refs': {'rates': 'Annex A'}},
+             ['EMP-S', 'EMP-T']),
+        _doc('DOC-3200', 'QTN-3200', 'Quotation', 'Agency J', 'Ready', 90, 'QTN-3200_AgencyJ.csv',
+             'Quotation QTN-3200 for Agency J. Monthly S$4,900. No hourly rate quoted. Valid 01/07/2026 to 30/06/2027.',
+             {'billing_basis': 'rate_card', 'fee_pct': None,
+              'rates': {'monthly': 4900, 'half_day': None, 'daily': None, 'weekly': None, 'hourly': None},
+              'mandatory_references': ['Quotation number', 'Billing period'],
+              'valid_from': '2026-07-01', 'valid_to': '2027-06-30'},
+             ['EMP-U']),
     ]
 
 
@@ -240,6 +296,9 @@ def reviews():
         r('EX-09', 'missing_po', 'July timesheet before PO start date', 'Agency F', 'Officers K and L logged 2026-07 hours but PO 4500-0330 starts 1 Aug 2026.', 'DOC-3300'),
         r('EX-10', 'invoicing_instruction', 'GST rate differs from standard', 'Agency F', 'PO 4500-0330 states GST 8%; Settings use 9%. Confirm with customer.', 'DOC-3300'),
         r('EX-11', 'project_timesheet', 'Unpaid leave in 2026-10 reduces billing', 'Agency B', 'Officer C (3 days) and Officer J (4 days) unpaid leave in October; billing reduced pro rata.', 'DOC-2231'),
+        r('EX-13', 'rate_approval', 'Hourly rate missing from quotation', 'Agency J', 'Officer U is paid hourly but QTN-3200 has no hourly rate; billing cannot be calculated.', 'DOC-3200'),
+        r('EX-14', 'project_timesheet', 'Timesheet missing for 2026-10', 'Agency H', 'Officer R has no timesheet for 2026-10; invoice flagged to Payroll / HR.', 'DOC-0460'),
+        r('EX-15', 'missing_po', 'Timesheets before PO start date', 'Agency G', 'Jul-Sep timesheets exist for Officers N and O but PO 4500-0450 starts 1 Oct 2026.', 'DOC-0450'),
         r('EX-12', 'project_timesheet', 'Extended medical leave 2026-08', 'Agency A', 'Officer I: 3 paid + 5 unpaid leave days; confirm MC documents.', 'DOC-0182'),
     ]
 
@@ -256,25 +315,54 @@ def seed(store) -> None:
     generate_runs(store)
 
 
-def generate_runs(store) -> None:
-    """Pre-calculate runs for every document x period (Jul-Oct 2026).
+# (document, period) -> scenario state for generated runs. Anything not listed is a plain Draft.
+RUN_STATES = {
+    ('DOC-0460', '2026-07'): 'approved',
+    ('DOC-0460', '2026-08'): 'approved',
+    ('DOC-0460', '2026-09'): 'stalled',  # awaiting sign-off for > 48h
+    ('DOC-0460', '2026-10'): 'flagged',  # flagged to Payroll / HR
+    ('DOC-3100', '2026-07'): 'approved',
+    ('DOC-3100', '2026-09'): 'awaiting',
+}
 
-    All runs start as Draft; approving assigns the invoice number.
+
+def generate_runs(store) -> None:
+    """Pre-calculate runs for every document x period (Jul-Oct 2026) that has none yet.
+
+    Most runs start as Draft (approving assigns nothing new: the invoice number is given at creation).
+    RUN_STATES adds history: approved, awaiting validation, stalled and flagged invoices.
     """
+    from datetime import timedelta
+
     from . import engine
 
-    docs, emps, tss = documents(), employees(), timesheets()
-    by_id = {e['id']: e for e in emps}
-    runs = []
+    docs = store.read('documents', [])
+    by_id = {e['id']: e for e in store.read('employees', [])}
+    tss = store.read('timesheets', [])
+    settings = store.read('settings', {}) or {}
+    runs = store.read('runs', [])
+    have = {(r['document_id'], r['period']) for r in runs}
     seq = {}
+    for r in runs:
+        n = (r.get('invoice_no') or '').rsplit('-', 1)
+        if len(n) == 2 and n[1].isdigit():
+            seq[r['period']] = max(seq.get(r['period'], 0), int(n[1]))
+    added = 0
     for period in PERIODS:
         for doc in docs:
-            staff = [by_id[i] for i in doc['staff_ids']]
-            built = engine.build_run(doc, period, staff, tss, {}, {})
+            if (doc['id'], period) in have:
+                continue
+            staff = [by_id[i] for i in doc.get('staff_ids', []) if i in by_id]
+            if not staff:
+                continue
+            built = engine.build_run(doc, period, staff, tss, settings, {})
             failing = [c for c in built['checks'] if c['result'] == 'Fail']
-            approved = False  # all seeded runs start as Draft so they can be reviewed and approved in the app
+            state = RUN_STATES.get((doc['id'], period))
+            if failing and state in ('approved',):
+                state = None
             seq[period] = seq.get(period, 0) + 1
             inv_no = f'INV-{period.replace("-", "")}-{seq[period]:04d}'
+            now = datetime.now(timezone.utc)
             run = {
                 'id': inv_no,
                 'document_id': doc['id'],
@@ -291,10 +379,36 @@ def generate_runs(store) -> None:
                 'updated_at': _now(),
                 **built,
             }
-            if approved:
-                run['status'] = 'Approved'
-                run['approved_at'] = _now()
-                run['approved_by'] = 'system (seed)'
+            if state == 'approved':
+                run.update(status='Approved', approved_at=_now(), approved_by='finance.reviewer@tg.local',
+                           validation={'outcome': 'approve', 'note': None, 'by': 'finance.reviewer@tg.local', 'ts': _now()})
+            elif state in ('awaiting', 'stalled', 'flagged'):
+                run['status'] = 'Awaiting validation'
+                outcome = 'flag' if state == 'flagged' else 'approve'
+                run['validation'] = {'outcome': outcome, 'note': 'Timesheet discrepancy: flagged to Payroll / HR' if state == 'flagged' else None,
+                                     'by': 'finance.reviewer@tg.local', 'ts': _now()}
+                if state == 'stalled':
+                    run['updated_at'] = (now - timedelta(hours=72)).isoformat(timespec='seconds')
             runs.append(run)
+            added += 1
     store.write('runs', runs)
-    store.audit('system', 'seed.runs', f'Generated {len(runs)} runs for {PERIODS[0]} to {PERIODS[-1]}')
+    store.audit('system', 'seed.runs', f'Generated {added} runs for {PERIODS[0]} to {PERIODS[-1]}')
+
+
+def merge_missing(store) -> dict:
+    """Add any seed employees / documents / timesheets / reviews / runs that the store does not have yet.
+
+    Existing records (including the user's own edits and approvals) are never touched.
+    """
+    counts = {}
+    for name, items in (('employees', employees()), ('documents', documents()), ('timesheets', timesheets()),
+                        ('reviews', reviews())):
+        cur = store.read(name, [])
+        ids = {x['id'] for x in cur}
+        new = [x for x in items if x['id'] not in ids]
+        counts[name] = len(new)
+        store.write(name, cur + new)
+    before = len(store.read('runs', []))
+    generate_runs(store)
+    counts['runs'] = len(store.read('runs', [])) - before
+    return counts
