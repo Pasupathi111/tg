@@ -123,7 +123,7 @@ def answer_question(question: str, run: Optional[dict], doc: Optional[dict]) -> 
                 break
         if re.search(r'\btotal\b|\binvoice\b|subtotal|how much', ql) and not line and topic != 'gst':
             steps = [
-                {'n': i + 1, 'title': l['name'], 'text': f'Cost S${l["cost"]:,.2f} + fee S${l["fee"]:,.2f} = S${l["amount"]:,.2f}', 'source': f'Run {run["id"]}'}
+                {'n': i + 1, 'title': l['name'], 'text': f'Cost S${l["cost"]:,.2f} + fee S${l["fee"]:,.2f} = S${l["amount"]:,.2f}', 'source': f'Invoice {run.get("invoice_no") or run["id"]}'}
                 for i, l in enumerate(run['lines'])
             ]
             k = len(steps)

@@ -21,7 +21,7 @@
 		</div>
 		<div class="text-right">
 			<div class="text-2xl font-bold tracking-wide text-[#22344A]">TAX INVOICE</div>
-			<div class="font-mono text-xs text-[#6B7785]">{run.invoice_no ?? 'Draft — number assigned on approval'}</div>
+			<div class="font-mono text-xs text-[#6B7785]">{run.invoice_no ?? run.id}{run.status === 'Approved' ? '' : ' · Draft'}</div>
 		</div>
 	</div>
 

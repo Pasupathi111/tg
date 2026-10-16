@@ -9,6 +9,7 @@
 		calculateRun,
 		getRun,
 		getRuns,
+		deleteRun,
 		validateRun,
 		approveRun,
 		getInvoiceHtml,
@@ -50,6 +51,7 @@
 	let docs: TgDocument[] = [];
 	let employees: Employee[] = [];
 	let timesheetCount = 0;
+	let timesheets: any[] = [];
 	let period = defaultPeriod();
 	let selectedDocId: string | null = null;
 
@@ -94,6 +96,24 @@
 		: employees
 				.filter((e) => e.party && e.party === selectedDoc?.party && e.active !== false)
 				.map((e) => e.name);
+	$: staffRows = (selectedDoc?.staff_ids?.length
+		? selectedDoc.staff_ids.map((id) => employees.find((e) => e.id === id)).filter(Boolean)
+		: employees.filter((e) => e.party && e.party === selectedDoc?.party && e.active !== false)
+	).map((e) => {
+		const t = timesheets.find((x) => x.employee_id === e.id);
+		const gap = t ? (t.scheduled_days ?? 0) - ((t.worked_days ?? 0) + (t.paid_leave_days ?? 0) + (t.unpaid_leave_days ?? 0)) : 0;
+		return {
+			name: e.name,
+			basis: e.pay_basis,
+			status: !t ? 'Missing' : gap > 0 ? `Missing ${gap} days` : 'Complete',
+			ok: !!t && gap <= 0,
+			leave: t ? `${t.paid_leave_days ?? 0} paid · ${t.unpaid_leave_days ?? 0} unpaid` : '—',
+			ot: t ? t.ot_hours ?? 0 : '—'
+		};
+	});
+	$: staffReady = staffRows.filter((r) => r.ok).length;
+	$: periodRun = allRuns.find((r) => r.document_id === selectedDocId && r.period === period) ?? null;
+	$: validCount = periodDocs.filter((x) => !x.issue).length;
 	$: rateEntries = Object.entries(ins.rates ?? {}).filter(([, v]) => v !== null && v !== undefined);
 
 	const goStep = (n: number) => {
@@ -121,8 +141,10 @@
 
 	const loadTimesheets = async () => {
 		try {
-			timesheetCount = (await getTimesheets(localStorage.token, period))?.length ?? 0;
+			timesheets = (await getTimesheets(localStorage.token, period)) ?? [];
+			timesheetCount = timesheets.length;
 		} catch {
+			timesheets = [];
 			timesheetCount = 0;
 		}
 	};
@@ -146,6 +168,37 @@
 			error = `Calculation failed: ${e}`;
 		}
 		busy = false;
+	};
+
+	const openExisting = async () => {
+		if (!periodRun) return;
+		busy = true;
+		error = '';
+		try {
+			run = await getRun(localStorage.token, periodRun.id);
+			activeLine = 0;
+			if (run.status === 'Approved') {
+				await loadStep4();
+				goStep(4);
+			} else {
+				goStep(2);
+			}
+		} catch (e) {
+			error = `${e}`;
+		}
+		busy = false;
+	};
+
+	const deleteDraft = async () => {
+		if (!periodRun || !confirm(`Delete draft invoice ${periodRun.invoice_no ?? periodRun.id}?`)) return;
+		try {
+			await deleteRun(localStorage.token, periodRun.id);
+			allRuns = await getRuns(localStorage.token);
+			if (run?.id === periodRun.id) run = null;
+			notice = 'Draft invoice deleted.';
+		} catch (e) {
+			error = `${e}`;
+		}
 	};
 
 	const flagToOps = () => {
@@ -181,7 +234,7 @@
 				goStep(2);
 				panelOpen = true;
 			} else {
-				notice = 'Flagged to the data owners. The run stays awaiting validation.';
+				notice = 'Flagged to the data owners. The invoice stays awaiting validation.';
 			}
 		} catch (e) {
 			error = `${e}`;
@@ -275,11 +328,11 @@
 			<!-- STEP 1 -->
 			{#if step === 1}
 				<div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-					{#each [{ t: 'Timesheets', v: `${timesheetCount} for ${period}`, ok: timesheetCount > 0 }, { t: 'Billing report', v: 'Generated in step 4', ok: true }, { t: 'PO / Quotation', v: `${docs.length} on file`, ok: docs.length > 0 }, { t: 'Employee details', v: `${employees.length} on file`, ok: employees.length > 0 }] as c}
+					{#each [{ t: 'Timesheets', v: selectedDoc ? `${staffReady} of ${staffRows.length} complete for ${period}` : `${timesheetCount} for ${period}`, ok: selectedDoc ? staffReady === staffRows.length && staffRows.length > 0 : timesheetCount > 0 }, { t: 'Invoice', v: periodRun ? `${periodRun.invoice_no ?? periodRun.id} · ${periodRun.status}` : `None yet for ${period}`, ok: !!periodRun, label: periodRun ? periodRun.status : 'Not started' }, { t: 'PO / Quotation', v: `${validCount} valid of ${docs.length} for ${period}`, ok: validCount > 0 }, { t: 'Employee details', v: selectedDoc ? `${staffRows.length} linked to ${selectedDoc.ref}` : `${employees.length} on file`, ok: staffRows.length > 0 || employees.length > 0 }] as c}
 						<div class="rounded-xl border border-[#E3E7EC] bg-white p-3">
 							<div class="flex items-center justify-between">
 								<div class="text-sm font-semibold text-[#22344A]">{c.t}</div>
-								<Pill variant={c.ok ? 'teal' : 'warn'}>{c.ok ? 'Received' : 'Missing'}</Pill>
+								<Pill variant={c.ok ? 'teal' : 'warn'}>{c.label ?? (c.ok ? 'Received' : 'Missing')}</Pill>
 							</div>
 							<div class="mt-1 text-xs text-[#6B7785]">{c.v}</div>
 						</div>
@@ -365,14 +418,44 @@
 								</tbody>
 							</table>
 
-							<div class="mt-3 text-[11px] font-bold uppercase tracking-wide text-[#6B7785]">Staff</div>
-							<div class="mt-1 flex flex-wrap gap-1.5">
-								{#each staff as s}
-									<span class="rounded-full bg-[#F1F3F6] px-2.5 py-1 text-xs text-[#22344A]">{s}</span>
-								{:else}
-									<span class="text-xs text-[#6B7785]">No staff linked.</span>
-								{/each}
-							</div>
+							<div class="mt-3 text-[11px] font-bold uppercase tracking-wide text-[#6B7785]">Staff · {period}</div>
+							{#if staffRows.length}
+								<div class="mt-1 overflow-x-auto">
+									<table class="w-full min-w-[420px] text-xs">
+										<thead class="text-left text-[10px] uppercase text-[#6B7785]">
+											<tr><th class="py-1">Officer</th><th>Basis</th><th>Leave</th><th>OT h</th><th>Timesheet</th></tr>
+										</thead>
+										<tbody>
+											{#each staffRows as r}
+												<tr class="border-t border-[#EEF0F3]">
+													<td class="py-1.5 pr-2">{r.name}</td>
+													<td class="pr-2">{r.basis}</td>
+													<td class="pr-2">{r.leave}</td>
+													<td class="pr-2">{r.ot}</td>
+													<td><Pill variant={r.ok ? 'teal' : 'warn'}>{r.status}</Pill></td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							{:else}
+								<div class="mt-1 text-xs text-[#6B7785]">No staff linked.</div>
+							{/if}
+
+							{#if periodRun}
+								<div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F1F3F6] p-3 text-xs">
+									<div>
+										<span class="font-mono font-semibold text-[#22344A]">{periodRun.invoice_no ?? periodRun.id}</span>
+										· {periodRun.status} · SGD {fmtMoney(periodRun.total)}
+									</div>
+									<div class="flex gap-3">
+										<button class="font-semibold text-[#0E7C8F] underline" on:click={openExisting}>Open invoice</button>
+										{#if periodRun.status !== 'Approved'}
+											<button class="font-semibold text-[#B42318] underline" on:click={deleteDraft}>Delete draft</button>
+										{/if}
+									</div>
+								</div>
+							{/if}
 
 							{#if selectedDoc.status === 'Expired'}
 								<div class="mt-3 rounded-lg bg-[#FBE1E1] p-2.5 text-xs text-[#B42318]">
@@ -383,10 +466,10 @@
 							<div class="mt-4 flex flex-wrap gap-2">
 								<button
 									class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B4560A] disabled:opacity-50"
-									disabled={busy || selectedDoc.status === 'Expired'}
-									on:click={confirmAndCalculate}
+									disabled={busy || (selectedDoc.status === 'Expired' && !periodRun)}
+									on:click={() => (periodRun?.status === 'Approved' ? openExisting() : confirmAndCalculate())}
 								>
-									{busy ? 'Calculating…' : 'Confirm instructions & calculate'}
+									{busy ? 'Calculating…' : periodRun ? (periodRun.status === 'Approved' ? 'View approved invoice' : 'Recalculate draft invoice') : 'Confirm instructions & generate draft invoice'}
 								</button>
 								<button
 									class="rounded-lg border border-[#C8610F] px-4 py-2 text-sm font-semibold text-[#C8610F] hover:bg-[#FDF1E6]"

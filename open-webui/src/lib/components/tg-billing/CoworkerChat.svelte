@@ -120,7 +120,7 @@
 			<span class="rounded-full bg-[#F1F3F6] px-2.5 py-0.5 text-[11px] text-[#6B7785]">Run {run.id}</span>
 			<span class="rounded-full bg-[#F1F3F6] px-2.5 py-0.5 text-[11px] text-[#6B7785]">{run.period}</span>
 		{:else}
-			<span class="rounded-full bg-[#F1F3F6] px-2.5 py-0.5 text-[11px] text-[#6B7785]">No run selected</span>
+			<span class="rounded-full bg-[#F1F3F6] px-2.5 py-0.5 text-[11px] text-[#6B7785]">No invoice selected</span>
 		{/if}
 	</div>
 

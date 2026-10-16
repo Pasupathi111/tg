@@ -38,7 +38,7 @@
 
 	<div class="mb-3 flex flex-wrap gap-3">
 		<label class="text-xs text-[#6B7785]">
-			Invoice run
+			Invoice
 			<select
 				bind:value={runId}
 				class="mt-1 block rounded-lg border border-[#E3E7EC] bg-white px-2 py-1.5 text-sm text-[#33414F]"

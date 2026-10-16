@@ -3,6 +3,8 @@
 	import {
 		getReviewQueue,
 		resolveReviewItem,
+		createReviewItem,
+		deleteReviewItem,
 		type ReviewItem,
 		type ReviewQueue
 	} from '$lib/apis/tg-billing';
@@ -26,6 +28,34 @@
 	let assignee = '';
 	let note = '';
 	let saving = false;
+	let creating: any = null;
+
+	const create = async () => {
+		if (!creating) return;
+		saving = true;
+		error = '';
+		try {
+			const item = await createReviewItem(localStorage.token, creating);
+			creating = null;
+			category = 'all';
+			await load();
+			selectedId = item.id;
+		} catch (e) {
+			error = `${e}`;
+		}
+		saving = false;
+	};
+
+	const remove = async () => {
+		if (!selected || !confirm(`Delete ${selected.id}?`)) return;
+		try {
+			await deleteReviewItem(localStorage.token, selected.id);
+			selectedId = null;
+			await load();
+		} catch (e) {
+			error = `${e}`;
+		}
+	};
 
 	$: items = queue?.items ?? [];
 	$: selected = items.find((i) => i.id === selectedId) ?? null;
@@ -83,7 +113,14 @@
 	<PageHeader
 		title="Review Queue"
 		subtitle="Exceptions raised by the rule engine. Resolve them before invoicing."
-	/>
+	>
+		<button
+			class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B4560A]"
+			on:click={() => (creating = { category: 'project_timesheet', title: '', party: '', detail: '' })}
+		>
+			New exception
+		</button>
+	</PageHeader>
 
 	<div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Exception category">
 		{#each filters as f}
@@ -214,8 +251,36 @@
 					>
 						Save assignment
 					</button>
+					<button
+						class="rounded-lg border border-[#F3C1C1] px-4 py-2 text-sm text-[#B42318] hover:bg-[#FBE1E1]"
+						on:click={remove}
+					>
+						Delete
+					</button>
 				</div>
 			{/if}
 		</div>
 	</div>
 </div>
+
+{#if creating}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+		<form class="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-5" on:submit|preventDefault={create}>
+			<div class="mb-3 text-lg font-bold text-[#22344A]">New exception</div>
+			<div class="space-y-3">
+				<label class="block text-xs text-[#6B7785]">Category
+					<select bind:value={creating.category} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]">
+						{#each filters.filter((f) => f.key !== 'all') as f}<option value={f.key}>{f.label}</option>{/each}
+					</select>
+				</label>
+				<label class="block text-xs text-[#6B7785]">Title<input required bind:value={creating.title} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]" /></label>
+				<label class="block text-xs text-[#6B7785]">Agency / party<input bind:value={creating.party} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]" /></label>
+				<label class="block text-xs text-[#6B7785]">Detail<textarea rows="3" bind:value={creating.detail} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]"></textarea></label>
+			</div>
+			<div class="mt-4 flex justify-end gap-2">
+				<button type="button" class="rounded-lg border border-[#D5DBE2] px-4 py-2 text-sm text-[#33414F]" on:click={() => (creating = null)}>Cancel</button>
+				<button class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving}>Create</button>
+			</div>
+		</form>
+	</div>
+{/if}

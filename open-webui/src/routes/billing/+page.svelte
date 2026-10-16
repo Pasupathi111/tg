@@ -80,7 +80,7 @@
 			tone: 'text-[#C8610F]'
 		},
 		{
-			label: 'Runs awaiting validation',
+			label: 'Invoices awaiting validation',
 			value: data?.kpis?.runs_awaiting,
 			href: '/billing/invoice',
 			tone: 'text-[#22344A]'
@@ -265,7 +265,7 @@
 	<div class="mt-4 grid gap-4 lg:grid-cols-3">
 		<section class="rounded-xl border border-[#E3E7EC] bg-white lg:col-span-2">
 			<div class="border-b border-[#E3E7EC] px-4 py-3 font-semibold text-[#22344A]">
-				Recent invoice runs
+				Invoices
 			</div>
 			{#if loading}
 				<div class="p-6 text-sm text-[#6B7785]">Loading…</div>
@@ -279,7 +279,7 @@
 					<table class="w-full text-sm">
 						<thead class="bg-[#F1F3F6] text-left text-[11px] uppercase text-[#6B7785]">
 							<tr>
-								<th class="px-4 py-2">Run</th>
+								<th class="px-4 py-2">Invoice</th>
 								<th class="px-4 py-2">Document</th>
 								<th class="px-4 py-2">Period</th>
 								<th class="px-4 py-2">Status</th>

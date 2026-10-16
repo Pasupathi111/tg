@@ -313,3 +313,12 @@ export const fmtMoney = (n: number | null | undefined) =>
 	n === null || n === undefined || isNaN(Number(n))
 		? '—'
 		: Number(n).toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export const deleteRun = (token: string, id: string) => request(token, `/runs/${id}`, { method: 'DELETE' });
+export const deleteTimesheet = (token: string, id: string) => request(token, `/timesheets/${id}`, { method: 'DELETE' });
+export const createReviewItem = (
+	token: string,
+	body: { category: string; title: string; party?: string; detail?: string; document_id?: string }
+): Promise<ReviewItem> => request(token, '/review-queue', { method: 'POST', body });
+export const deleteReviewItem = (token: string, id: string) =>
+	request(token, `/review-queue/${id}`, { method: 'DELETE' });
