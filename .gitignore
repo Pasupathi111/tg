@@ -11,3 +11,4 @@ data-dev/
 !.env.example
 __pycache__/
 .claude/
+.secret-key
