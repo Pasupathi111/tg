@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import { getRuns, getDocuments, type Run, type TgDocument } from '$lib/apis/tg-billing';
 	import PageHeader from '$lib/components/tg-billing/PageHeader.svelte';
 	import CoworkerChat from '$lib/components/tg-billing/CoworkerChat.svelte';
@@ -10,6 +11,7 @@
 	let docId = '';
 	let error = '';
 	let loading = true;
+	const initialQuestion = $page.url.searchParams.get('q') ?? '';
 
 	$: run = runs.find((r) => r.id === runId) ?? null;
 
@@ -67,6 +69,7 @@
 		{:else}
 			{#key runId + docId}
 				<CoworkerChat
+					{initialQuestion}
 					{run}
 					documentId={docId || undefined}
 					chips={[

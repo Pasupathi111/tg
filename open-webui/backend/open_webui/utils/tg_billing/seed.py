@@ -36,8 +36,18 @@ def _emp(id_, name, code, party, desig, basis, age=34, res='citizen', **kw):
     return e
 
 
+PROJECT_CODES = {'Agency A': 'PRJ-2041', 'Agency B': 'PRJ-2043', 'Agency E': 'PRJ-2047', 'Agency C': 'PRJ-2048',
+                 'Agency D': 'PRJ-2050', 'Agency F': 'PRJ-2094'}
+
+
+def _with_projects(emps):
+    for e in emps:
+        e.setdefault('project_code', PROJECT_CODES.get(e['party'], ''))
+    return emps
+
+
 def employees():
-    return [
+    return _with_projects([
         _emp('EMP-A', 'Officer A - Tan Wei Ming', 'TG-0041', 'Agency A', 'Admin Executive', 'monthly', 34, 'citizen',
              monthly_salary=4200, allowances=[{'label': 'Transport allowance', 'amount': 150}]),
         _emp('EMP-B', 'Officer B - Siti Nurhaliza', 'TG-0057', 'Agency A', 'Customer Service Associate', 'hourly', 29, 'pr',
@@ -60,9 +70,11 @@ def employees():
              daily_rate=300),
         _emp('EMP-K', 'Officer K - Grace Lee', 'TG-0124', 'Agency F', 'Marketing Executive', 'monthly', 27, 'citizen',
              monthly_salary=4500),
+        _emp('EMP-M', 'Officer M - Nur Aisyah', 'TG-0140', 'Agency E', 'Admin Support', 'monthly', 30, 'citizen',
+             monthly_salary=3800),
         _emp('EMP-L', 'Officer L - Wang Jun', 'TG-0131', 'Agency F', 'Data Entry Clerk', 'hourly', 33, 'foreign',
              hourly_rate=18, other_contributions=[{'label': 'Foreign worker levy', 'amount': 250}]),
-    ]
+    ])
 
 
 def timesheets():
@@ -87,8 +99,17 @@ def timesheets():
         # K: starts Aug (new PO window) - Jul timesheet exists but PO not yet valid
         'EMP-K': [(0, 0, 0), (1, 0, 0), (0, 0, 0), (2, 2, 0)],
         'EMP-L': [(0, 0, 0), (0, 0, 6), (0, 0, 0), (0, 0, 0)],
+        'EMP-M': [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)],  # Agency E: no PO on file
     }
     half_days_of = {'EMP-D': [30, 28, 30, 31]}
+    # timesheet gaps for dashboard readiness: int = days not yet submitted, 'missing' = no timesheet
+    gaps = {
+        ('EMP-J', '2026-07'): 3,
+        ('EMP-G', '2026-08'): 2,
+        ('EMP-D', '2026-09'): 'missing',
+        ('EMP-L', '2026-09'): 1,
+        ('EMP-B', '2026-10'): 4,
+    }
     for emp, rows in spec.items():
         for i, r in enumerate(rows):
             if r is None:
@@ -96,7 +117,10 @@ def timesheets():
             p = PERIODS[i]
             pl, ul, ot = r
             sched = SCHEDULED[p]
-            worked = sched - pl - ul
+            gap = gaps.get((emp, p), 0)
+            if gap == 'missing':
+                continue
+            worked = sched - pl - ul - gap
             out.append(
                 {
                     'id': f'TS-{emp}-{p}',
@@ -249,11 +273,13 @@ def generate_runs(store) -> None:
             built = engine.build_run(doc, period, staff, tss, {}, {})
             failing = [c for c in built['checks'] if c['result'] == 'Fail']
             approved = False  # all seeded runs start as Draft so they can be reviewed and approved in the app
+            seq[period] = seq.get(period, 0) + 1
+            inv_no = f'INV-{period.replace("-", "")}-{seq[period]:04d}'
             run = {
-                'id': f'RUN-{doc["id"][4:]}-{period.replace("-", "")}',
+                'id': inv_no,
                 'document_id': doc['id'],
                 'period': period,
-                'invoice_no': None,
+                'invoice_no': inv_no,
                 'adjustments': [],
                 'created_at': _now(),
                 'created_by': 'system (seed)',
@@ -266,9 +292,7 @@ def generate_runs(store) -> None:
                 **built,
             }
             if approved:
-                seq[period] = seq.get(period, 0) + 1
                 run['status'] = 'Approved'
-                run['invoice_no'] = f'INV-{period.replace("-", "")}-{seq[period]:04d}'
                 run['approved_at'] = _now()
                 run['approved_by'] = 'system (seed)'
             runs.append(run)

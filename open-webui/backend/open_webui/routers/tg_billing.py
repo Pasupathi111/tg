@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 from open_webui.env import DATA_DIR
 from open_webui.utils.auth import get_verified_user
-from open_webui.utils.tg_billing import engine, extractor, invoice
+from open_webui.utils.tg_billing import engine, extractor, invoice, readiness
 from open_webui.utils.tg_billing.ask import answer_question
 from open_webui.utils.tg_billing.seed import seed as seed_fn
 from open_webui.utils.tg_billing.store import Store
@@ -243,19 +243,32 @@ def _invoice_no(period: str, runs: list) -> str:
 
 # ----------------------------------------------------------------------------- dashboard
 @router.get('/dashboard')
-def dashboard(user=Depends(get_verified_user)):
+def dashboard(period: Optional[str] = Query(None), user=Depends(get_verified_user)):
     st = get_store()
     docs, runs, reviews = st.all('documents'), st.all('runs'), st.all('reviews')
     audit = st.all('audit')
+    if period and not PERIOD_RE.match(period):
+        _err(422, 'period must be YYYY-MM')
+    period = period or datetime.now(timezone.utc).strftime('%Y-%m')
+    assignments = readiness.build_assignments(period, docs, st.all('employees'), st.all('timesheets'), reviews)
+    exceptions = readiness.exceptions_by_type(assignments)
+    p_runs = [r for r in runs if r['period'] == period]
+    run_ids = {r['id'] for r in p_runs}
+    valid_docs = {a['document_id'] for a in assignments if a['po']['tone'] == 'ok' and a['document_id']}
+    p_docs = [d for d in docs if d['id'] in valid_docs]
     return {
+        'period': period,
+        'assignments': assignments,
+        'exceptions': exceptions,
+        'pipeline': readiness.pipeline(runs, period),
         'kpis': {
-            'pos_ready': sum(1 for d in docs if d['status'] == 'Ready'),
-            'needs_confirmation': sum(1 for d in docs if d['status'] == 'Needs confirmation'),
-            'open_exceptions': sum(1 for r in reviews if r.get('status') != 'Resolved'),
-            'runs_awaiting': sum(1 for r in runs if r['status'] in ('Draft', 'Awaiting validation')),
+            'pos_ready': sum(1 for d in p_docs if d['status'] == 'Ready'),
+            'needs_confirmation': sum(1 for d in p_docs if d['status'] == 'Needs confirmation'),
+            'open_exceptions': sum(e['count'] for e in exceptions),
+            'runs_awaiting': sum(1 for r in p_runs if r['status'] in ('Draft', 'Awaiting validation')),
         },
-        'runs': [_run_summary(r) for r in sorted(runs, key=lambda x: x.get('updated_at') or '', reverse=True)],
-        'activity': list(reversed(audit[-15:])),
+        'runs': [_run_summary(r) for r in sorted(p_runs, key=lambda x: x.get('updated_at') or '', reverse=True)],
+        'activity': list(reversed([a for a in audit if a.get('run_id') in run_ids][-15:])),
     }
 
 
@@ -478,6 +491,15 @@ def upsert_timesheet(form: TimesheetForm, user=Depends(get_verified_user)):
     return ts
 
 
+@router.delete('/timesheets/{ts_id}')
+def delete_timesheet(ts_id: str, user=Depends(get_verified_user)):
+    st = get_store()
+    if not st.delete_item('timesheets', ts_id):
+        _err(404, 'Timesheet not found')
+    st.audit(_actor(user), 'timesheet.delete', f'Timesheet {ts_id} deleted')
+    return {'ok': True}
+
+
 # ----------------------------------------------------------------------------- review queue
 CATEGORIES = ('missing_po', 'project_timesheet', 'rate_approval', 'invoicing_instruction')
 
@@ -492,6 +514,49 @@ def review_queue(category: Optional[str] = Query(None), user=Depends(get_verifie
             _err(422, f'category must be one of {", ".join(CATEGORIES)}')
         items = [i for i in items if i['category'] == category]
     return {'counts': counts, 'items': items}
+
+
+class ReviewForm(BaseModel):
+    category: str
+    title: str
+    party: Optional[str] = None
+    detail: Optional[str] = None
+    document_id: Optional[str] = None
+
+
+@router.post('/review-queue')
+def create_review(form: ReviewForm, user=Depends(get_verified_user)):
+    st = get_store()
+    if form.category not in CATEGORIES:
+        _err(422, f'category must be one of {", ".join(CATEGORIES)}')
+    if not form.title.strip():
+        _err(422, 'title is required')
+    reviews = st.all('reviews')
+    n = max([int(r['id'].split('-')[1]) for r in reviews if re.fullmatch(r'EX-\d+', r['id'])] + [0]) + 1
+    item = {
+        'id': f'EX-{n:02d}',
+        'category': form.category,
+        'title': form.title.strip(),
+        'party': form.party,
+        'detail': form.detail,
+        'document_id': form.document_id,
+        'status': 'Open',
+        'assignee': None,
+        'note': None,
+        'created_at': _now(),
+    }
+    st.save_item('reviews', item)
+    st.audit(_actor(user), 'review.create', f'{item["id"]} created: {item["title"]}')
+    return item
+
+
+@router.delete('/review-queue/{item_id}')
+def delete_review(item_id: str, user=Depends(get_verified_user)):
+    st = get_store()
+    if not st.delete_item('reviews', item_id):
+        _err(404, 'Item not found')
+    st.audit(_actor(user), 'review.delete', f'{item_id} deleted')
+    return {'ok': True}
 
 
 @router.post('/review-queue/{item_id}/resolve')
@@ -525,11 +590,12 @@ def calculate(form: CalculateForm, user=Depends(get_verified_user)):
     existing = next((r for r in st.all('runs') if r['document_id'] == form.document_id and r['period'] == form.period), None)
     if existing and existing['status'] == 'Approved':
         _err(409, 'An approved run already exists for this document and period')
+    inv_no = _invoice_no(form.period, st.all('runs')) if not existing else None
     run = existing or {
-        'id': f'RUN-{uuid.uuid4().hex[:8].upper()}',
+        'id': inv_no,
         'document_id': form.document_id,
         'period': form.period,
-        'invoice_no': None,
+        'invoice_no': inv_no,
         'adjustments': [],
         'created_at': _now(),
         'created_by': _actor(user),
@@ -552,6 +618,17 @@ def list_runs(user=Depends(get_verified_user)):
 @router.get('/runs/{run_id}')
 def get_run(run_id: str, user=Depends(get_verified_user)):
     return _run_or_404(run_id)
+
+
+@router.delete('/runs/{run_id}')
+def delete_run(run_id: str, user=Depends(get_verified_user)):
+    st = get_store()
+    run = _run_or_404(run_id)
+    if run['status'] == 'Approved':
+        _err(409, 'Approved invoices cannot be deleted')
+    st.delete_item('runs', run_id)
+    st.audit(_actor(user), 'run.delete', f'Draft invoice {run.get("invoice_no") or run_id} deleted', run_id=run_id)
+    return {'ok': True}
 
 
 @router.post('/runs/{run_id}/adjustments')
@@ -668,7 +745,7 @@ def approve_run(run_id: str, user=Depends(get_verified_user)):
         if failing:
             _err(422, 'Cannot approve while checks fail: ' + ', '.join(failing))
         run['status'] = 'Approved'
-        run['invoice_no'] = _invoice_no(run['period'], st.all('runs'))
+        run['invoice_no'] = run.get('invoice_no') or _invoice_no(run['period'], st.all('runs'))
         run['approved_at'] = _now()
         run['approved_by'] = _actor(user)
         run['updated_at'] = _now()

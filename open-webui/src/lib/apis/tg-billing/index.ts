@@ -123,7 +123,28 @@ export type AuditEntry = {
 	[key: string]: any;
 };
 
+export type Chip = { label: string; tone: 'ok' | 'warn' | 'bad' | 'grey' };
+export type Assignment = {
+	employee_id: string;
+	worker: string;
+	code?: string;
+	party?: string;
+	project_code: string;
+	po_ref: string;
+	document_id?: string | null;
+	timesheet: Chip;
+	po: Chip;
+	rate: Chip;
+	instruction: Chip;
+	status: 'Ready' | 'Not ready' | 'Needs confirmation' | 'Blocked';
+	group: 'Ready' | 'Not ready' | 'Blocked';
+};
+
 export type Dashboard = {
+	period: string;
+	assignments: Assignment[];
+	exceptions: { category: string; label: string; count: number }[];
+	pipeline: { draft: number; awaiting: number; approved: number; stalled: number; stall_hours: number };
 	kpis: {
 		pos_ready: number;
 		needs_confirmation: number;
@@ -187,7 +208,8 @@ const download = async (token: string, path: string): Promise<Blob> => {
 };
 
 // ---------- Endpoints ----------
-export const getDashboard = (token: string): Promise<Dashboard> => request(token, '/dashboard');
+export const getDashboard = (token: string, period?: string): Promise<Dashboard> =>
+	request(token, `/dashboard${period ? `?period=${period}` : ''}`);
 
 export const getDocuments = (token: string): Promise<TgDocument[]> => request(token, '/documents');
 export const getDocument = (token: string, id: string): Promise<TgDocument> =>

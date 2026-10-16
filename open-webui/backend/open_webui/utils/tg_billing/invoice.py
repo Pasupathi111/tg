@@ -143,7 +143,7 @@ td{{padding:8px;border-bottom:1px solid #E3E7EC}} .r{{text-align:right}} th.r{{t
 def render_csv(run: dict, inv: dict) -> str:
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(['Run', run['id'], 'Invoice', inv.get('invoice_no') or 'DRAFT', 'Period', run['period'], 'Document', inv['references'].get('document_ref')])
+    w.writerow(['Invoice', run.get('invoice_no') or run['id'], 'Status', run.get('status'), 'Period', run['period'], 'Document', inv['references'].get('document_ref')])
     w.writerow([])
     w.writerow(['Officer', 'Pay basis', 'Section', 'Item', 'Calculation', 'Amount', 'Source', 'Adjusted'])
     for l in run['lines']:

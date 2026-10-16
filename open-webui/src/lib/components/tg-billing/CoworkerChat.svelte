@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { createEventDispatcher, tick } from 'svelte';
+	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { askBillingCoworker, adjustRun, fmtMoney, type Run } from '$lib/apis/tg-billing';
 
 	export let run: Run | null = null;
+	export let initialQuestion = '';
 	export let documentId: string | undefined = undefined;
 	export let chips: string[] = [
 		'Why is this amount what it is?',
@@ -45,6 +46,10 @@
 		await tick();
 		if (scroller) scroller.scrollTop = scroller.scrollHeight;
 	};
+
+	onMount(() => {
+		if (initialQuestion) send(initialQuestion);
+	});
 
 	const send = async (q?: string) => {
 		const question = (q ?? input).trim();
