@@ -1,0 +1,13 @@
+# local data, logs, envs
+data-tg/
+data-dev/
+*.log
+.venv-tg/
+**/node_modules/
+**/.svelte-kit/
+**/build/
+.env
+.env.*
+!.env.example
+__pycache__/
+.claude/

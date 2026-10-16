@@ -1,0 +1,21 @@
+QUOTATION
+Quotation No: QTN-3050
+Date: 02 January 2026
+Customer: Agency E
+Supplier: APBA TG Human Resource Pte Ltd
+
+Scope: Provision of administrative support officers on contract.
+
+Validity: 1 January 2026 to 31 December 2026
+
+Charges:
+- Monthly rate: SGD 4,800.00 per officer per month
+- Half-day rate: SGD 120.00 per half day
+- Hourly rate: SGD 28.00 per hour
+- Daily rate: SGD 230.00 per day
+
+Billing basis: rate card. Invoices are issued monthly in arrears, one invoice per quotation.
+GST at 9% is chargeable on all services (standard-rated).
+Mandatory references on invoice: Quotation number, Billing period, Cost centre.
+Supporting documents: approved timesheet summary.
+Submission: email to accounts@agency-e.example
