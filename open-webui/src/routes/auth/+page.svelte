@@ -76,7 +76,7 @@
 			}
 
 			if (!redirectPath) {
-				redirectPath = $page.url.searchParams.get('redirect') || '/';
+				redirectPath = $page.url.searchParams.get('redirect') || '/billing';
 			}
 
 			await goto(redirectPath);
@@ -172,7 +172,7 @@
 		const logout = $page.url.searchParams.get('state') === 'logout';
 
 		if ($user && !logout) {
-			goto(redirectPath || '/');
+			goto(redirectPath || '/billing');
 		} else {
 			if (redirectPath) {
 				localStorage.setItem('redirectPath', redirectPath);
