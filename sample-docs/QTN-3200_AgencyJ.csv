@@ -1,12 +1,12 @@
-QUOTATION
-Quotation No,QTN-3200
-Customer,Agency J
-Supplier,APBA TG Human Resource Pte Ltd
-Validity,1 October 2026 to 30 September 2027
-Monthly rate,SGD 4900.00 per officer per month
-Half-day rate,SGD 140.00 per half day
-Daily rate,SGD 270.00 per day
-Hourly rate,SGD 35.00 per hour
-Billing basis,rate card. Invoices are issued monthly in arrears.
-GST,9% is chargeable on all services.
-Mandatory references on invoice,Quotation number and Billing period
+"QUOTATION"
+"Quotation No: QTN-3200"
+"Customer: Agency J"
+"Supplier: APBA TG Human Resource Pte Ltd"
+"Validity: 1 October 2026 to 30 September 2027"
+"Monthly rate: SGD 4,900.00 per officer per month"
+"Half-day rate: SGD 140.00 per half day"
+"Daily rate: SGD 270.00 per day"
+"Hourly rate: SGD 35.00 per hour"
+"Billing basis: rate card. Invoices are issued monthly in arrears."
+"GST at 9% is chargeable on all services."
+"Mandatory references on invoice: Quotation number, Billing period."
