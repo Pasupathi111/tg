@@ -308,7 +308,9 @@ def upload_document(
 
     emps = st.all('employees')
     parsed = extractor.parse_instructions(text, fname, emps)
-    doc_id = f'DOC-{uuid.uuid4().hex[:6].upper()}'
+    ref = parsed['ref'] or re.sub(r'\.[^.]+$', '', fname)
+    same = next((d for d in st.all('documents') if (d.get('ref') or '').lower() == ref.lower()), None)
+    doc_id = same['id'] if same else f'DOC-{uuid.uuid4().hex[:6].upper()}'
     p = (party or parsed['party'] or '').strip() or None
     staff = parsed['staff_ids']
     if not staff and p:
@@ -318,7 +320,7 @@ def upload_document(
     (st.uploads / f'{doc_id}.txt').write_text(text, encoding='utf-8')
     doc = {
         'id': doc_id,
-        'ref': parsed['ref'] or re.sub(r'\.[^.]+$', '', fname),
+        'ref': ref,
         'doc_type': (doc_type or parsed['doc_type']),
         'party': p,
         'status': extractor.status_for(parsed['confidence'], parsed['instructions']),
@@ -326,12 +328,19 @@ def upload_document(
         'source_filename': fname,
         'text_excerpt': text[:1500],
         'instructions': parsed['instructions'],
-        'staff_ids': staff,
-        'created_at': _now(),
+        'staff_ids': (same.get('staff_ids') if same and same.get('staff_ids') else staff),
+        'created_at': (same or {}).get('created_at') or _now(),
     }
+    if same:
+        doc['updated_at'] = _now()
     st.save_item('documents', doc)
-    st.audit(_actor(user), 'document.upload', f'Uploaded {fname} as {doc["ref"]} (confidence {doc["confidence"]}%)', document_id=doc_id)
-    return doc
+    st.audit(
+        _actor(user),
+        'document.upload',
+        f'{"Re-uploaded" if same else "Uploaded"} {fname} as {doc["ref"]} (confidence {doc["confidence"]}%)',
+        document_id=doc_id,
+    )
+    return {**doc, 'replaced': bool(same)}
 
 
 @router.get('/documents/{doc_id}')
@@ -508,9 +517,43 @@ def delete_timesheet(ts_id: str, user=Depends(get_verified_user)):
 CATEGORIES = ('missing_po', 'project_timesheet', 'rate_approval', 'invoicing_instruction')
 
 
+REVIEW_DEFAULTS = {
+    'missing_po': (
+        'Every timesheet must map to a PO / quotation that is valid for the billing period.',
+        'Upload the renewed PO or quotation in Master Data and link the staff to it, or correct the timesheet period if it is wrong.',
+    ),
+    'project_timesheet': (
+        'An approved timesheet must cover all scheduled days for every assigned officer each period.',
+        "Add or correct the officer's timesheet in Master Data > Timesheets, then recalculate the invoice.",
+    ),
+    'rate_approval': (
+        'The billing rate must exist in the PO / quotation and match the approved rate.',
+        'Get the rate approved by the customer, then update the rate card (Edit instructions) or the employee rate.',
+    ),
+    'invoicing_instruction': (
+        'Invoicing instructions (fee basis, GST, split, validity) must be unambiguous with confidence of 80% or more.',
+        'Open the document, review the extracted instructions, correct them with Edit instructions and confirm.',
+    ),
+}
+
+
+def _enrich_review(item: dict) -> dict:
+    rule, sugg = REVIEW_DEFAULTS.get(item.get('category'), (None, None))
+    out = dict(item)
+    out.setdefault('rule', None)
+    out['rule'] = item.get('rule') or rule
+    out['suggestion'] = item.get('suggestion') or sugg
+    ev = item.get('evidence')
+    if not ev:
+        ev = [x for x in (item.get('detail'), f'Document: {item["document_id"]}' if item.get('document_id') else None) if x]
+    out['evidence'] = ev
+    out['summary'] = item.get('summary') or item.get('detail')
+    return out
+
+
 @router.get('/review-queue')
 def review_queue(category: Optional[str] = Query(None), user=Depends(get_verified_user)):
-    items = get_store().all('reviews')
+    items = [_enrich_review(i) for i in get_store().all('reviews')]
     open_items = [i for i in items if i.get('status') != 'Resolved']
     counts = {'all': len(open_items), **{c: sum(1 for i in open_items if i['category'] == c) for c in CATEGORIES}}
     if category and category != 'all':
@@ -552,6 +595,40 @@ def create_review(form: ReviewForm, user=Depends(get_verified_user)):
     st.save_item('reviews', item)
     st.audit(_actor(user), 'review.create', f'{item["id"]} created: {item["title"]}')
     return item
+
+
+class ReviewEditForm(BaseModel):
+    category: Optional[str] = None
+    title: Optional[str] = None
+    party: Optional[str] = None
+    detail: Optional[str] = None
+    document_id: Optional[str] = None
+    rule: Optional[str] = None
+    suggestion: Optional[str] = None
+    evidence: Optional[list] = None
+    status: Optional[str] = None
+    assignee: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.put('/review-queue/{item_id}')
+def edit_review(item_id: str, form: ReviewEditForm, user=Depends(get_verified_user)):
+    st = get_store()
+    item = st.get('reviews', item_id)
+    if not item:
+        _err(404, 'Item not found')
+    data = form.model_dump(exclude_unset=True)
+    if 'category' in data and data['category'] not in CATEGORIES:
+        _err(422, f'category must be one of {", ".join(CATEGORIES)}')
+    if 'title' in data and not (data['title'] or '').strip():
+        _err(422, 'title is required')
+    if data.get('status') not in (None, 'Open', 'Assigned', 'Resolved'):
+        _err(422, 'status must be Open, Assigned or Resolved')
+    item.update({k: v for k, v in data.items() if v is not None or k in ('party', 'detail', 'document_id', 'assignee', 'note')})
+    item['updated_at'] = _now()
+    st.save_item('reviews', item)
+    st.audit(_actor(user), 'review.edit', f'{item_id} edited: {", ".join(data) or "no changes"}', review_id=item_id)
+    return _enrich_review(item)
 
 
 @router.delete('/review-queue/{item_id}')

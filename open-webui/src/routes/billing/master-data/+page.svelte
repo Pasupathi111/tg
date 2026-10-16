@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import {
 		getDocuments,
 		uploadDocument,
@@ -22,6 +23,7 @@
 
 	let tab: 'documents' | 'employees' | 'timesheets' = 'documents';
 
+	let linked = false;
 	let docs: TgDocument[] = [];
 	$: sortedDocs = [...docs].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
 	$: sortedEmployees = [...employees].reverse();
@@ -32,8 +34,7 @@
 
 	let uploading = false;
 	let dragOver = false;
-	let docType = '';
-	let party = '';
+	let results: { name: string; ok: boolean; text: string }[] = [];
 	let fileInput: HTMLInputElement;
 	let selectedDoc: TgDocument | null = null;
 
@@ -156,6 +157,18 @@
 				getEmployees(localStorage.token)
 			]);
 			if (selectedDoc) selectedDoc = docs.find((d) => d.id === selectedDoc?.id) ?? null;
+			if (!linked) {
+				linked = true;
+				const q = $page.url.searchParams;
+				const t = q.get('tab');
+				if (t === 'timesheets' || t === 'employees') tab = t;
+				const d = docs.find((x) => x.id === q.get('doc'));
+				if (d) {
+					tab = 'documents';
+					selectedDoc = d;
+					if (q.get('edit')) openDocEdit(d);
+				}
+			}
 		} catch (e) {
 			error = `${e}`;
 		}
@@ -168,15 +181,20 @@
 		uploading = true;
 		error = '';
 		notice = '';
+		results = [];
 		for (const f of Array.from(files)) {
 			try {
-				const d = await uploadDocument(localStorage.token, f, {
-					doc_type: docType || undefined,
-					party: party || undefined
-				});
-				notice = `Uploaded ${f.name}${d?.ref ? ` as ${d.ref}` : ''}.`;
+				const d: any = await uploadDocument(localStorage.token, f);
+				results = [
+					...results,
+					{
+						name: f.name,
+						ok: true,
+						text: `${d.replaced ? 'Updated existing' : 'Added'} ${d.ref}${d.party ? ` · ${d.party}` : ''} · ${d.doc_type} · confidence ${d.confidence ?? 0}%`
+					}
+				];
 			} catch (e) {
-				error = `Upload failed for ${f.name}: ${e}`;
+				results = [...results, { name: f.name, ok: false, text: `${e}` }];
 			}
 		}
 		uploading = false;
@@ -279,61 +297,52 @@
 	{/if}
 
 	{#if tab === 'documents'}
-		<!-- upload -->
+		<!-- upload: drag & drop -->
 		<div
-			class="mb-5 rounded-xl border-2 border-dashed bg-white p-5 transition {dragOver
+			class="mb-5 rounded-xl border-2 border-dashed bg-white p-6 text-center transition {dragOver
 				? 'border-[#E8892B] bg-[#FDF1E6]'
-				: 'border-[#D5DBE2]'}"
+				: 'border-[#D5DBE2] hover:border-[#E8892B]'}"
 			on:dragover|preventDefault={() => (dragOver = true)}
 			on:dragleave={() => (dragOver = false)}
 			on:drop={onDrop}
 			role="region"
 			aria-label="Upload documents"
 		>
-			<div class="flex flex-wrap items-end gap-3">
-				<div class="min-w-[220px] flex-1">
-					<div class="font-semibold text-[#22344A]">Upload PO / Quotation / Contract</div>
-					<div class="text-xs text-[#6B7785]">
-						Drop files here or browse. PDF, DOCX, TXT, CSV or XLSX. Billing instructions are extracted
-						automatically.
-					</div>
-				</div>
-				<label class="text-xs text-[#6B7785]">
-					Type
-					<select
-						bind:value={docType}
-						class="mt-1 block rounded-lg border border-[#E3E7EC] bg-white px-2 py-1.5 text-sm text-[#33414F]"
-					>
-						<option value="">Auto-detect</option>
-						<option>PO</option>
-						<option>Quotation</option>
-						<option>Contract</option>
-					</select>
-				</label>
-				<label class="text-xs text-[#6B7785]">
-					Party (optional)
-					<input
-						bind:value={party}
-						placeholder="e.g. Agency A"
-						class="mt-1 block rounded-lg border border-[#E3E7EC] bg-white px-2 py-1.5 text-sm text-[#33414F]"
-					/>
-				</label>
-				<input
-					bind:this={fileInput}
-					type="file"
-					multiple
-					class="hidden"
-					accept=".pdf,.docx,.txt,.csv,.xlsx"
-					on:change={(e) => uploadFiles(e.currentTarget.files ?? [])}
-				/>
-				<button
-					class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B4560A] disabled:opacity-50"
-					disabled={uploading}
-					on:click={() => fileInput.click()}
-				>
-					{uploading ? 'Uploading…' : 'Upload files'}
-				</button>
+			<input
+				bind:this={fileInput}
+				type="file"
+				multiple
+				class="hidden"
+				accept=".pdf,.docx,.txt,.csv,.xlsx"
+				on:change={(e) => uploadFiles(e.currentTarget.files ?? [])}
+			/>
+			<svg class="mx-auto size-10 text-[#E8892B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+			</svg>
+			<div class="mt-2 font-semibold text-[#22344A]">
+				{#if uploading}Uploading and extracting billing instructions…{:else if dragOver}Drop to upload{:else}Drag &amp; drop PO / Quotation / Contract files here{/if}
 			</div>
+			<div class="mt-1 text-xs text-[#6B7785]">
+				PDF, DOCX, TXT, CSV or XLSX · up to 20 MB each · the type, agency, rates, fee, GST and validity are detected automatically
+				and can be corrected afterwards with Edit instructions.
+			</div>
+			<button
+				class="mt-3 rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#B4560A] disabled:opacity-50"
+				disabled={uploading}
+				on:click={() => fileInput.click()}
+			>
+				{uploading ? 'Uploading…' : 'Browse files'}
+			</button>
+			{#if results.length}
+				<ul class="mx-auto mt-4 max-w-2xl space-y-1 text-left text-xs">
+					{#each results as r}
+						<li class="flex gap-2 rounded-lg px-3 py-2 {r.ok ? 'bg-[#DDF1F5] text-[#0B6272]' : 'bg-[#FBE1E1] text-[#B42318]'}">
+							<span>{r.ok ? '✓' : '✕'}</span>
+							<span class="min-w-0 break-words"><b>{r.name}</b> — {r.text}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		</div>
 
 		<div class="grid gap-4 lg:grid-cols-5">

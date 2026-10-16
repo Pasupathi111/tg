@@ -4,6 +4,7 @@
 		getReviewQueue,
 		resolveReviewItem,
 		createReviewItem,
+		updateReviewItem,
 		deleteReviewItem,
 		type ReviewItem,
 		type ReviewQueue
@@ -29,17 +30,66 @@
 	let note = '';
 	let saving = false;
 	let creating: any = null;
+	let notice = '';
+
+	const startEdit = (i: ReviewItem) => {
+		creating = {
+			id: i.id,
+			category: i.category,
+			title: i.title,
+			party: i.party ?? '',
+			detail: i.detail ?? '',
+			document_id: i.document_id ?? '',
+			rule: i.rule ?? '',
+			suggestion: i.suggestion ?? '',
+			status: i.status ?? 'Open',
+			evidenceText: (Array.isArray(i.evidence) ? i.evidence : i.evidence ? [i.evidence] : []).join('\n')
+		};
+	};
+
+	// where the underlying problem is fixed
+	const fixLink = (i: ReviewItem) => {
+		const doc = i.document_id ? `doc=${i.document_id}` : '';
+		if (i.category === 'project_timesheet') return { href: '/billing/master-data?tab=timesheets', label: 'Fix timesheet' };
+		if (i.category === 'rate_approval') return { href: `/billing/master-data?${doc}&edit=1`, label: 'Fix rate' };
+		if (i.category === 'invoicing_instruction') return { href: `/billing/master-data?${doc}&edit=1`, label: 'Fix instructions' };
+		return { href: `/billing/master-data?${doc}`, label: 'Fix PO / quotation' };
+	};
+
+	const reopen = async () => {
+		if (!selected) return;
+		saving = true;
+		try {
+			await resolveReviewItem(localStorage.token, selected.id, { status: 'Open', note: note || undefined });
+			await load();
+		} catch (e) {
+			error = `${e}`;
+		}
+		saving = false;
+	};
 
 	const create = async () => {
 		if (!creating) return;
 		saving = true;
 		error = '';
 		try {
-			const item = await createReviewItem(localStorage.token, creating);
-			creating = null;
-			category = 'all';
-			await load();
-			selectedId = item.id;
+			if (creating.id) {
+				const { id, ...rest } = creating;
+				rest.evidence = (rest.evidenceText ?? '').split('\n').map((x: string) => x.trim()).filter(Boolean);
+				delete rest.evidenceText;
+				await updateReviewItem(localStorage.token, id, rest);
+				creating = null;
+				await load();
+				selectedId = id;
+				notice = 'Exception updated.';
+			} else {
+				const item = await createReviewItem(localStorage.token, creating);
+				creating = null;
+				category = 'all';
+				await load();
+				selectedId = item.id;
+				notice = 'Exception created.';
+			}
 		} catch (e) {
 			error = `${e}`;
 		}
@@ -140,6 +190,10 @@
 		{/each}
 	</div>
 
+	{#if notice}
+		<div class="mb-4 rounded-xl bg-[#DDF1F5] p-3 text-sm text-[#0E7C8F]">{notice}</div>
+	{/if}
+
 	{#if error}
 		<div class="mb-4 rounded-xl border border-[#F3C1C1] bg-[#FBE1E1] p-3 text-sm text-[#B42318]">
 			{error}
@@ -216,6 +270,11 @@
 				<div class="mt-1 rounded-lg border border-[#F3D3B5] bg-[#FDF1E6] p-2.5 text-sm">
 					{selected.suggestion ?? '—'}
 				</div>
+				<a
+					href={fixLink(selected).href}
+					class="mt-2 inline-block rounded-lg bg-[#0E7C8F] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0B6272]"
+					>{fixLink(selected).label} →</a
+				>
 
 				<div class="mt-4 grid gap-3 sm:grid-cols-2">
 					<label class="text-xs text-[#6B7785]">
@@ -251,6 +310,10 @@
 					>
 						Save assignment
 					</button>
+					{#if isResolved(selected)}
+						<button class="rounded-lg border border-[#D5DBE2] px-4 py-2 text-sm text-[#33414F] hover:bg-[#F6F7F9] disabled:opacity-50" disabled={saving} on:click={reopen}>Reopen</button>
+					{/if}
+					<button class="rounded-lg border border-[#D5DBE2] px-4 py-2 text-sm text-[#33414F] hover:bg-[#F6F7F9]" on:click={() => startEdit(selected)}>Edit</button>
 					<button
 						class="rounded-lg border border-[#F3C1C1] px-4 py-2 text-sm text-[#B42318] hover:bg-[#FBE1E1]"
 						on:click={remove}
@@ -266,7 +329,7 @@
 {#if creating}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
 		<form class="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-5" on:submit|preventDefault={create}>
-			<div class="mb-3 text-lg font-bold text-[#22344A]">New exception</div>
+			<div class="mb-3 text-lg font-bold text-[#22344A]">{creating.id ? `Edit ${creating.id}` : 'New exception'}</div>
 			<div class="space-y-3">
 				<label class="block text-xs text-[#6B7785]">Category
 					<select bind:value={creating.category} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]">
@@ -275,11 +338,21 @@
 				</label>
 				<label class="block text-xs text-[#6B7785]">Title<input required bind:value={creating.title} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]" /></label>
 				<label class="block text-xs text-[#6B7785]">Agency / party<input bind:value={creating.party} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]" /></label>
+				{#if creating.id}
+					<label class="block text-xs text-[#6B7785]">Status
+						<select bind:value={creating.status} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]">
+							<option>Open</option><option>Assigned</option><option>Resolved</option>
+						</select>
+					</label>
+					<label class="block text-xs text-[#6B7785]">Rule triggered<textarea rows="2" bind:value={creating.rule} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]"></textarea></label>
+					<label class="block text-xs text-[#6B7785]">Evidence (one per line)<textarea rows="3" bind:value={creating.evidenceText} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]"></textarea></label>
+					<label class="block text-xs text-[#6B7785]">Suggested resolution<textarea rows="2" bind:value={creating.suggestion} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]"></textarea></label>
+				{/if}
 				<label class="block text-xs text-[#6B7785]">Detail<textarea rows="3" bind:value={creating.detail} class="mt-1 block w-full rounded-lg border border-[#E3E7EC] px-2 py-1.5 text-sm text-[#33414F]"></textarea></label>
 			</div>
 			<div class="mt-4 flex justify-end gap-2">
 				<button type="button" class="rounded-lg border border-[#D5DBE2] px-4 py-2 text-sm text-[#33414F]" on:click={() => (creating = null)}>Cancel</button>
-				<button class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving}>Create</button>
+				<button class="rounded-lg bg-[#C8610F] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saving}>{creating.id ? 'Save changes' : 'Create'}</button>
 			</div>
 		</form>
 	</div>

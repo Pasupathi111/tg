@@ -322,3 +322,5 @@ export const createReviewItem = (
 ): Promise<ReviewItem> => request(token, '/review-queue', { method: 'POST', body });
 export const deleteReviewItem = (token: string, id: string) =>
 	request(token, `/review-queue/${id}`, { method: 'DELETE' });
+export const updateReviewItem = (token: string, id: string, body: Record<string, any>): Promise<ReviewItem> =>
+	request(token, `/review-queue/${id}`, { method: 'PUT', body });
