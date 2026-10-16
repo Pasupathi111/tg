@@ -75,8 +75,10 @@
 				updateUserTimezone(sessionUser.token, timezone);
 			}
 
-			if (!redirectPath) {
-				redirectPath = $page.url.searchParams.get('redirect') || '/billing';
+			// '/' is the chat home; TG lands on the Billing Coworker unless a specific page was requested
+			if (!redirectPath || redirectPath === '/') {
+				const requested = $page.url.searchParams.get('redirect');
+				redirectPath = requested && requested !== '/' ? requested : '/billing';
 			}
 
 			await goto(redirectPath);
@@ -172,7 +174,7 @@
 		const logout = $page.url.searchParams.get('state') === 'logout';
 
 		if ($user && !logout) {
-			goto(redirectPath || '/billing');
+			goto(redirectPath && redirectPath !== '/' ? redirectPath : '/billing');
 		} else {
 			if (redirectPath) {
 				localStorage.setItem('redirectPath', redirectPath);
