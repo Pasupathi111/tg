@@ -1,0 +1,15 @@
+PURCHASE ORDER
+Purchase Order No: 4500-0450
+Date: 01 October 2026
+Bill to: Agency G
+Supplier: APBA TG Human Resource Pte Ltd
+
+Scope: Provision of 2 customer service officers on a cost-plus basis.
+
+Validity: Valid from 01/10/2026 to 30/09/2027
+
+Billing basis: cost-plus. Management fee of 11% on total employment cost (Clause 4.1).
+Bill monthly in arrears, one invoice per PO. GST at 9% is chargeable (Clause 5.2).
+Mandatory references on invoice: PO number, Billing period, Cost centre.
+Supporting documents: approved timesheets.
+Submission: email to ap@agency-g.example
